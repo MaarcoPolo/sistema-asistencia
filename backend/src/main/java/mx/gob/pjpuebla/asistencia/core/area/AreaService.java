@@ -1,31 +1,68 @@
 package mx.gob.pjpuebla.asistencia.core.area;
 
 import lombok.RequiredArgsConstructor;
+import mx.gob.pjpuebla.asistencia.core.usuario.Usuario; 
+import mx.gob.pjpuebla.asistencia.security.SecurityUtil; 
 import mx.gob.pjpuebla.asistencia.util.enums.Estado;
+import mx.gob.pjpuebla.asistencia.util.enums.Rol; 
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList; 
 import java.util.List;
+import java.util.Set; 
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AreaService {
     private final AreaRepository areaRepository;
+    private final SecurityUtil securityUtil; 
+
 
     @Transactional(readOnly = true)
     public Page<AreaRecord> getAll(String key, Pageable pageable) {
+        // Ahora aplica la lógica de seguridad por rol
+        Usuario currentUser = securityUtil.getCurrentUser()
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        if (currentUser.getRol() == Rol.ADMIN) {
+            Set<Integer> idsDeSusAreas = currentUser.getAreasGestionadas().stream()
+                .map(Area::getId).collect(Collectors.toSet());
+            idsDeSusAreas.add(currentUser.getAreaPrincipal().getId());
+
+            Page<Area> areaPage = areaRepository.findByNombreAndIds(key, idsDeSusAreas, pageable);
+            return areaPage.map(this::toRecord);
+        }
+
+        // Para SUPERADMIN
         Page<Area> areaPage = areaRepository.findByNombreContainingIgnoreCaseAndEstatusNot(key, Estado.DELETED, pageable);
         return areaPage.map(this::toRecord);
     }
 
     @Transactional(readOnly = true)
     public List<AreaRecord> findAllForSelect() {
-        List<Area> areas = areaRepository.findByEstatus(Estado.ACTIVE);
+       // las áreas permitidas para el rol
+        Usuario currentUser = securityUtil.getCurrentUser()
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        List<Area> areas = new ArrayList<>();
+
+        if (currentUser.getRol() == Rol.SUPERADMIN) {
+            areas = areaRepository.findByEstatus(Estado.ACTIVE);
+        } else if (currentUser.getRol() == Rol.ADMIN) {
+            // Un admin solo puede ver sus áreas gestionadas y su área principal
+            areas.addAll(currentUser.getAreasGestionadas());
+            areas.add(currentUser.getAreaPrincipal());
+        }
+        
+        // Filtramos para evitar duplicados y asegurar que solo sean activas
         return areas.stream()
+                .filter(area -> area.getEstatus() == Estado.ACTIVE)
+                .distinct()
                 .map(area -> new AreaRecord(area.getId(), null, area.getNombre(), null, null, null, null))
                 .collect(Collectors.toList());
     }

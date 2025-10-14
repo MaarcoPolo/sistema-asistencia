@@ -7,7 +7,7 @@ export const NotificationProvider = ({ children }) => {
   const [notification, setNotification] = useState({
     open: false,
     message: '',
-    severity: 'info', // 'success', 'error', 'warning', 'info'
+    severity: 'info',
   })
 
   const showNotification = (message, severity = 'success') => {
@@ -18,7 +18,8 @@ export const NotificationProvider = ({ children }) => {
     if (reason === 'clickaway') {
       return
     }
-    setNotification((prev) => ({ ...prev, open: false }))
+    // MODIFICADO: Al cerrar, reseteamos el estado completamente.
+    setNotification({ open: false, message: '', severity: 'info' })
   }
 
   return (
@@ -26,16 +27,18 @@ export const NotificationProvider = ({ children }) => {
       {children}
       <Snackbar
         open={notification.open}
-        autoHideDuration={4000} 
+        autoHideDuration={4000}
         onClose={handleClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }} 
-      >
-        <Alert
-          onClose={handleClose}
-          severity={notification.severity}
-          sx={{ width: '100%' }}>
-          {notification.message}
-        </Alert>
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        {/* Usamos una condición para que el Alert no intente renderizarse si ya se cerró */}
+        {notification.open && (
+          <Alert
+            onClose={handleClose}
+            severity={notification.severity}
+            sx={{ width: '100%' }}>
+            {notification.message}
+          </Alert>
+        )}
       </Snackbar>
     </NotificationContext.Provider>
   )

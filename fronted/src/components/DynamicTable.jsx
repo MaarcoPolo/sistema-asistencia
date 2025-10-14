@@ -21,7 +21,6 @@ function DynamicTable({
   fetchDataFunction,
   renderActions,
   initialSort,
-  searchTerm,
 }) {
   const [data, setData] = useState([])
   const [totalElements, setTotalElements] = useState(0)
@@ -33,6 +32,21 @@ function DynamicTable({
   const [sort, setSort] = useState(
     initialSort || { field: 'id', direction: 'asc' }
   )
+
+  const [searchTerm, setSearchTerm] = useState('') // Lo que el usuario escribe
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('') // Lo que se envía a la API
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setPage(0) // Regresar a la primera página con cada nueva búsqueda
+    }, 500)
+
+    return () => {
+      clearTimeout(timerId)
+    }
+  }, [searchTerm])
+
   // Función para cargar los datos, que se llamará cada vez que algo cambie
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -44,8 +58,10 @@ function DynamicTable({
         page,
         size: rowsPerPage,
         sort: `${sortField},${sort.direction}`,
-        key: searchTerm,
+        key: debouncedSearchTerm,
       }
+
+      if (!params.key) delete params.key
 
       const response = await fetchDataFunction(params)
       const pageData = response.data
@@ -58,7 +74,7 @@ function DynamicTable({
     } finally {
       setLoading(false)
     }
-  }, [page, rowsPerPage, sort, searchTerm, fetchDataFunction, columns])
+  }, [page, rowsPerPage, sort, debouncedSearchTerm, fetchDataFunction, columns])
 
   useEffect(() => {
     loadData()
@@ -80,6 +96,22 @@ function DynamicTable({
 
   return (
     <Box>
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <TextField
+          variant="outlined"
+          size="small"
+          placeholder="Buscar..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
       {loading ? (
         <TableSkeleton columns={columns.length + (renderActions ? 1 : 0)} />
       ) : (

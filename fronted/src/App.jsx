@@ -42,7 +42,13 @@ function App() {
               <IdentificacionUsuario />
             </PublicLayout>
           ) : (
-            <Navigate to="/asistencia" />
+            <Navigate
+              to={
+                authData.user.role === 'USER'
+                  ? '/asistencia'
+                  : '/admin/dashboard'
+              }
+            />
           )
         }
       />
@@ -105,11 +111,11 @@ function App() {
         element={
           <Navigate
             to={
-              authData
-                ? authData.user.role === 'USER'
-                  ? '/asistencia'
-                  : '/admin/dashboard'
-                : '/identificacion'
+              !authData
+                ? '/identificacion'
+                : authData.user.role === 'USER'
+                ? '/asistencia'
+                : '/admin/dashboard'
             }
           />
         }

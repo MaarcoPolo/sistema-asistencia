@@ -51,3 +51,69 @@ export const getEstadoAsistenciaDiario = async () => {
   const response = await apiClient.get('/asistencia/estado-diario')
   return response.data
 }
+// Función para exportar a EXCEL
+export const exportarAsistenciasExcel = async (params) => {
+  // Limpiamos los filtros que no tengan valor
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== null && v !== '')
+  )
+
+  try {
+    const response = await apiClient.get('/asistencia/exportar/excel', {
+      params: cleanParams,
+      responseType: 'blob', // MUY IMPORTANTE: Le decimos a Axios que esperamos un archivo
+    })
+
+    // Lógica para descargar el archivo en el navegador
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    // El backend nos dará el nombre del archivo en las cabeceras
+    const contentDisposition = response.headers['content-disposition']
+    let fileName = 'reporte-asistencias.xlsx' // Nombre por defecto
+    if (contentDisposition) {
+      const fileNameMatch = contentDisposition.match(/filename="(.+)"/)
+      if (fileNameMatch.length === 2) fileName = fileNameMatch[1]
+    }
+    link.setAttribute('download', fileName)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Error al exportar a Excel:', error)
+    // Lanzamos el error para que el componente que lo llama pueda manejarlo (ej. mostrar notificación)
+    throw error
+  }
+}
+
+// Función para exportar a PDF
+export const exportarAsistenciasPdf = async (params) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== null && v !== '')
+  )
+  try {
+    const response = await apiClient.get('/asistencia/exportar/pdf', {
+      params: cleanParams,
+      responseType: 'blob',
+    })
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const contentDisposition = response.headers['content-disposition']
+    let fileName = 'reporte-asistencias.pdf'
+    if (contentDisposition) {
+      const fileNameMatch = contentDisposition.match(/filename="(.+)"/)
+      if (fileNameMatch.length === 2) fileName = fileNameMatch[1]
+    }
+    link.setAttribute('download', fileName)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Error al exportar a PDF:', error)
+    throw error
+  }
+}

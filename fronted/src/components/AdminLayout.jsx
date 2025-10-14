@@ -45,7 +45,7 @@ function AdminLayout({ children }) {
 
     // Definimos las opciones del menú
     const menuItems = [
-      { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin/dashboard' },
+      { text: 'Asistencias', icon: <DashboardIcon />, path: '/admin/dashboard' },
       { text: 'Usuarios', icon: <PeopleIcon />, path: '/admin/usuarios' },
       { text: 'Áreas', icon: <ApartmentIcon />, path: '/admin/areas' },
       { text: 'Horarios', icon: <ScheduleIcon />, path: '/admin/horarios' },

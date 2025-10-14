@@ -1,18 +1,26 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import {
   getReporteAsistencias,
   createAsistencia,
   updateAsistencia,
   deleteAsistencia,
+  exportarAsistenciasExcel,
+  exportarAsistenciasPdf,
 } from '../services/asistenciaService'
 import DynamicTable from '../components/DynamicTable'
 import AsistenciaForm from '../components/AsistenciaForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
-import { Box, Button, Typography, IconButton, TextField } from '@mui/material'
+import { Box, Button, Typography, IconButton, TextField, Tooltip } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import VisibilityIcon from '@mui/icons-material/Visibility'
+import AsistenciaViewModal from '../components/AsistenciaViewModal'
+import ReporteModal from '../components/ReporteModal'
+import AssessmentIcon from '@mui/icons-material/Assessment' 
+
+
 
 function AdminDashboard() {
   // Estados para manejar los modales y diálogos de confirmación
@@ -21,6 +29,11 @@ function AdminDashboard() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
+  const [viewModalOpen, setViewModalOpen] = useState(false)
+  const [viewingRecord, setViewingRecord] = useState(null)
+  const [reporteModalOpen, setReporteModalOpen] = useState(false)
+
+  const { showNotification } = useNotification()
 
   // Estado para forzar la recarga de la tabla después de una acción
   const [tableKey, setTableKey] = useState(0)
@@ -28,7 +41,6 @@ function AdminDashboard() {
   // Estado para los filtros de fecha
   const [filters, setFilters] = useState({ fechaInicio: '', fechaFin: '' })
 
-  const { showNotification } = useNotification()
 
   // Definición de las columnas para la DynamicTable
   const columns = [
@@ -78,6 +90,14 @@ function AdminDashboard() {
     setModalOpen(false)
     setEditingRecord(null)
   }
+  const handleOpenViewModal = (record) => {
+    setViewingRecord(record)
+    setViewModalOpen(true)
+  }
+  const handleCloseViewModal = () => {
+    setViewingRecord(null)
+    setViewModalOpen(false)
+  }
 
   const handleSubmit = (formData) => {
     const action = editingRecord ? 'update' : 'create'
@@ -103,7 +123,10 @@ function AdminDashboard() {
       }
       setTableKey((prev) => prev + 1) // Forzar recarga de la tabla
     } catch (error) {
-      showNotification('Error al guardar el registro', 'error')
+      console.error('Error al guardar el registro', error)
+      const errorMessage =
+        error.response?.data?.message || 'Error al guardar el registro'
+      showNotification(errorMessage, 'error')
     } finally {
       handleCloseModal()
       setConfirmOpen(false)
@@ -123,9 +146,15 @@ function AdminDashboard() {
     try {
       await deleteAsistencia(id)
       showNotification('Registro eliminado con éxito', 'success')
-      setTableKey((prev) => prev + 1)
+
+      // Retrasamos la actualización de la tabla para no interrumpir la animación de la notificación.
+      setTimeout(() => {
+        setTableKey((prev) => prev + 1)
+      }, 300) // Un pequeño retraso de 300ms es suficiente.
     } catch (error) {
-      showNotification('Error al eliminar el registro', 'error')
+      console.error('Error al eliminar el registro:', error)
+      const errorMessage = error.response?.data?.message || 'Error al eliminar el registro'
+      showNotification(errorMessage, 'error')
     } finally {
       setConfirmOpen(false)
     }
@@ -135,6 +164,22 @@ function AdminDashboard() {
   const handleFilterChange = (event) => {
     const { name, value } = event.target
     setFilters((prev) => ({ ...prev, [name]: value }))
+  }
+  const handleGenerarReporte = async (filters, format) => {
+    try {
+      showNotification('Generando tu reporte, por favor espera...', 'info')
+      if (format === 'excel') {
+        await exportarAsistenciasExcel(filters)
+      } else if (format === 'pdf') {
+        await exportarAsistenciasPdf(filters)
+      }
+    } catch (error) {
+      console.error('Error al generar el reporte. Intenta de nuevo.', error)
+      const errorMessage =
+        error.response?.data?.message ||
+        'Error al generar el reporte. Intenta de nuevo.'
+      showNotification(errorMessage, 'error')
+    }
   }
 
   return (
@@ -147,8 +192,18 @@ function AdminDashboard() {
           mb: 2,
         }}>
         <Typography variant="h4" component="h1">
-          Dashboard de Asistencias
+          Registro de Asistencias
         </Typography>
+        <Tooltip title="Generar Reporte">
+          <Button
+            variant="outlined"
+            startIcon={<AssessmentIcon />}
+            onClick={() => setReporteModalOpen(true)}
+            sx={{ mr: 2 }} // margen a la derecha
+          >
+            Reportes
+          </Button>
+        </Tooltip>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -181,6 +236,11 @@ function AdminDashboard() {
         fetchDataFunction={fetchDataWithFilters}
         renderActions={(row) => (
           <>
+            <IconButton
+              color="default"
+              onClick={() => handleOpenViewModal(row)}>
+              <VisibilityIcon />
+            </IconButton>
             <IconButton color="primary" onClick={() => handleOpenModal(row)}>
               <EditIcon />
             </IconButton>
@@ -203,6 +263,16 @@ function AdminDashboard() {
         onConfirm={confirmAction}
         title={confirmData?.title}
         message={confirmData?.message}
+      />
+      <AsistenciaViewModal
+        open={viewModalOpen}
+        onClose={handleCloseViewModal}
+        record={viewingRecord}
+      />
+      <ReporteModal
+        open={reporteModalOpen}
+        onClose={() => setReporteModalOpen(false)}
+        onGenerate={handleGenerarReporte}
       />
     </Box>
   )

@@ -25,8 +25,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + usuario.getRol().name());
 
+        // --- CORRECCIÓN ---
+        // Si el usuario no tiene contraseña (es un rol USER), pasamos una cadena vacía.
         String password = usuario.getPassword() != null ? usuario.getPassword() : "";
-
+        
         return new User(
                 usuario.getMatricula(),
                 password, // Usamos la nueva variable segura

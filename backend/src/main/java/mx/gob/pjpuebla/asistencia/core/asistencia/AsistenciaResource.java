@@ -2,28 +2,32 @@ package mx.gob.pjpuebla.asistencia.core.asistencia;
 
 import lombok.RequiredArgsConstructor;
 
+import mx.gob.pjpuebla.asistencia.core.area.AreaRepository;
+import mx.gob.pjpuebla.asistencia.core.usuario.UsuarioRepository;
+
+import java.io.IOException;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import java.util.Optional;
-import java.util.Map;
+
 
 @RestController
 @RequestMapping("/api/asistencia")
@@ -31,17 +35,23 @@ import java.util.Map;
 public class AsistenciaResource {
 
     private final AsistenciaService asistenciaService;
+    private final ReporteService reporteService;
+
+    private final UsuarioRepository usuarioRepository;
+    private final AreaRepository areaRepository;
 
     @PostMapping("/registrar-entrada")
-    public ResponseEntity<Void> registrarEntrada(@RequestBody RegistroAsistenciaRequest request) {
-        asistenciaService.registrarEntrada(request);
-        return ResponseEntity.ok().build();
+    // Se cambia @RequestBody por @RequestParam para aceptar un archivo.
+    public ResponseEntity<Map<String, String>> registrarEntrada(@RequestParam("file") MultipartFile foto) {
+        asistenciaService.registrarEntrada(foto);
+        return ResponseEntity.ok(Map.of("message", "Entrada registrada con éxito."));
     }
 
     @PostMapping("/registrar-salida")
-    public ResponseEntity<Void> registrarSalida(@RequestBody RegistroAsistenciaRequest request) {
-        asistenciaService.registrarSalida(request);
-        return ResponseEntity.ok().build();
+    // Se cambia @RequestBody por @RequestParam para aceptar un archivo.
+    public ResponseEntity<Map<String, String>> registrarSalida(@RequestParam("file") MultipartFile foto) {
+        asistenciaService.registrarSalida(foto);
+        return ResponseEntity.ok(Map.of("message", "Salida registrada con éxito."));
     }
 
     @GetMapping("/reporte")
@@ -50,9 +60,10 @@ public class AsistenciaResource {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
             @RequestParam Optional<Integer> usuarioId,
             @RequestParam Optional<Integer> areaId,
+            @RequestParam Optional<String> key, // NUEVO: Parámetro para el término de búsqueda
             @PageableDefault(size = 25, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        return asistenciaService.getReporteAsistencias(fechaInicio, fechaFin, usuarioId, areaId, pageable);
+        return asistenciaService.getReporteAsistencias(fechaInicio, fechaFin, usuarioId, areaId, key, pageable);
     }
 
     @PostMapping("/manual")
@@ -74,11 +85,82 @@ public class AsistenciaResource {
     }
 
     @GetMapping("/estado-diario")
-    @PreAuthorize("hasRole('USER')") // Aseguramos que solo los usuarios normales puedan acceder
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Map<String, Boolean>> getEstadoAsistenciaDiario(
             @AuthenticationPrincipal UserDetails userDetails) {
         String matricula = userDetails.getUsername();
         Map<String, Boolean> estado = asistenciaService.getEstadoAsistenciaDiario(matricula);
         return ResponseEntity.ok(estado);
+    }
+
+    @GetMapping("/exportar/excel")
+    public ResponseEntity<byte[]> exportarAExcel(
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
+        @RequestParam Optional<Integer> usuarioId,
+        @RequestParam Optional<Integer> areaId,
+        @RequestParam Optional<String> key,
+        @RequestParam Optional<Boolean> soloRetardos
+    ) throws IOException {
+
+        List<AsistenciaReporteRecord> data = asistenciaService.getReporteData(fechaInicio, fechaFin, usuarioId, areaId, key, soloRetardos);
+        byte[] excelFile = reporteService.generarReporteExcel(data);
+
+        String filename = "Reporte_Asistencias_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelFile);
+    }
+
+    @GetMapping("/exportar/pdf")
+    public ResponseEntity<byte[]> exportarAPdf(
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
+        @RequestParam Optional<Integer> usuarioId,
+        @RequestParam Optional<Integer> areaId,
+        @RequestParam Optional<String> key,
+        @RequestParam Optional<Boolean> soloRetardos
+    ) throws IOException {
+
+        List<AsistenciaReporteRecord> data = asistenciaService.getReporteData(fechaInicio, fechaFin, usuarioId, areaId, key, soloRetardos);
+        
+        // Generar el subtítulo dinámico basado en los filtros
+        String subtitulo = generarSubtituloDinamico(fechaInicio, fechaFin, usuarioId, areaId, soloRetardos);
+
+        byte[] pdfFile = reporteService.generarReportePdf(data, subtitulo);
+
+        String filename = "Reporte_Asistencias_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".pdf";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfFile);
+    }
+
+    private String generarSubtituloDinamico(Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
+                                            Optional<Integer> usuarioId, Optional<Integer> areaId,
+                                            Optional<Boolean> soloRetardos) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        
+        // Creamos un Stream con los filtros. flatMap(Optional::stream) es una forma elegante de ignorar los Optional vacíos.
+        Stream<String> filtros = Stream.of(
+            fechaInicio.map(f -> "Desde: " + f.format(formatter)),
+            fechaFin.map(f -> "Hasta: " + f.format(formatter)),
+            
+            // Si hay un usuarioId, lo buscamos y obtenemos su nombre completo.
+            usuarioId.flatMap(usuarioRepository::findById)
+                    .map(usuario -> "Usuario: " + usuario.getNombre() + " " + usuario.getApellidoPaterno()),
+            
+            // Si hay un areaId, la buscamos y obtenemos su nombre.
+            areaId.flatMap(areaRepository::findById)
+                .map(area -> "Área: " + area.getNombre()),
+            
+            soloRetardos.filter(Boolean::booleanValue).map(b -> "Solo Retardos")
+        ).flatMap(Optional::stream);
+
+        String descripcionFiltros = filtros.collect(Collectors.joining(" - "));
+        return descripcionFiltros.isEmpty() ? "Reporte General" : "Filtros Aplicados: " + descripcionFiltros;
     }
 }
