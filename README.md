@@ -51,7 +51,7 @@ Asegúrate de tener instalado el siguiente software:
 
 ### 1. Clonar el Repositorio
 git clone [URL_DE_TU_REPOSITORIO]
-cd [NOMBRE_DE_LA_CARPETA_DEL_PROYECTO
+cd [NOMBRE_DE_LA_CARPETA_DEL_PROYECTO]
 # ================================================================
 # SCRIPT DE INSTALACIÓN RÁPIDA PARA EL SISTEMA DE ASISTENCIA
 # ================================================================
