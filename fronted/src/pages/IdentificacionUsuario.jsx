@@ -8,37 +8,46 @@ import {
   Typography,
   Container,
   Paper,
+  CircularProgress,
 } from '@mui/material'
 import { identificarUsuario } from '../services/authService'
 import { useNotification } from '../context/NotificationContext'
+import { getEstadoAsistenciaDiario } from '../services/asistenciaService'
+
 
 function IdentificacionUsuario() {
   const [matricula, setMatricula] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, logout } = useAuth()
   const { showNotification } = useNotification()
 
   const handleSubmit = async (event) => {
     event.preventDefault()
     try {
-      setLoading(true)
-      setError('')
       const data = await identificarUsuario(matricula)
       login(data)
-      showNotification('Identificación exitosa. Redirigiendo...', 'success')
-      navigate('/asistencia')
+      const estado = await getEstadoAsistenciaDiario()
+
+      if (estado.entradaRegistrada && estado.salidaRegistrada) {
+        // Si ya completó su jornada, no se le permite el acceso
+        showNotification(
+          'Ya has registrado tu entrada y salida el día de hoy.',
+          'warning'
+        )
+        logout() // Se cierra la sesión temporal inmediatamente
+      } else {
+        // Si no ha completado su jornada, se le permite el acceso
+        showNotification('Identificación exitosa. Redirigiendo...', 'success')
+        navigate('/asistencia')
+      }
     } catch (err) {
-      console.error('Error al identificar usuario:', err)
-      setError(
+      console.error('Error en el proceso de identificación:', err)
+      const errorMessage =
         err.response?.data?.message ||
-          'Error al identificar. Matrícula o token inválido.'
-      )
-      showNotification(
-        err.response?.data?.message || 'Error de identificación',
-        'error'
-      )
+        'Error al identificar. Verifique su matrícula.'
+      showNotification(errorMessage, 'error')
+      logout() // Limpiar cualquier sesión parcial si hubo un error
     } finally {
       setLoading(false)
     }
@@ -74,13 +83,15 @@ function IdentificacionUsuario() {
             autoFocus
             value={matricula}
             onChange={(e) => setMatricula(e.target.value)}
+            disabled={loading}
           />
           <Button
             type="submit"
             fullWidth
             variant="contained"
-            sx={{ mt: 3, mb: 2 }}>
-            Identificarse
+            sx={{ mt: 3, mb: 2 }}
+            disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : 'Identificarse'}
           </Button>
         </Box>
       </Paper>

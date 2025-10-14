@@ -88,7 +88,11 @@ function AdminUsuarios() {
     try {
       await deleteUsuario(id)
       showNotification('Usuario eliminado con éxito', 'success')
-      setTableKey((prev) => prev + 1) // Forzamos la recarga
+
+      // Aplicar la misma corrección aquí
+      setTimeout(() => {
+        setTableKey((prev) => prev + 1)
+      }, 300)
     } catch (error) {
       showNotification('Error al eliminar el usuario', 'error')
     } finally {

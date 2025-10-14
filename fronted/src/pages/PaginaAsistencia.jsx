@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Box, Button, Typography, Paper, Container } from '@mui/material'
+import { useNavigate } from 'react-router-dom'
 import Webcam from 'react-webcam'
 import {
   registrarEntrada,
@@ -10,10 +11,10 @@ import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import Clock from '../components/Clock'
 
-
 function PaginaAsistencia() {
-  const { authData } = useAuth()
-  const showNotification = useNotification()
+  const { authData, logout } = useAuth()
+  const { showNotification } = useNotification()
+  const navigate = useNavigate()
   const webcamRef = useRef(null)
   const [capturing, setCapturing] = useState(false)
 
@@ -22,21 +23,11 @@ function PaginaAsistencia() {
 
   const [entradaRegistrada, setEntradaRegistrada] = useState(false)
   const [salidaRegistrada, setSalidaRegistrada] = useState(false)
-  const [isLoading, setIsLoading] = useState(false) // Para indicar que una operación está en curso
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Efecto para cargar datos del usuario y el estado de asistencia inicial
-  useEffect(() => {
-    if (authData && authData.user) {
-      setNombre(authData.user.nombreCompleto)
-      setArea(authData.user.area)
-      loadEstadoAsistencia() // Cargar el estado al iniciar la página
-    }
-  }, [authData]) // Dependencia authData
-
-  // Función para cargar el estado de asistencia del día
   const loadEstadoAsistencia = useCallback(async () => {
-    if (!authData || !authData.token) return // Asegúrate de tener token para la petición
-    setIsLoading(true) // Indicar que se está cargando el estado
+    if (!authData || !authData.token) return
+    setIsLoading(true)
     try {
       const estado = await getEstadoAsistenciaDiario()
       setEntradaRegistrada(estado.entradaRegistrada)
@@ -45,21 +36,23 @@ function PaginaAsistencia() {
       console.error('Error al cargar el estado de asistencia:', error)
       showNotification('Error al cargar el estado de asistencia.', 'error')
     } finally {
-      setIsLoading(false) // Finalizar carga
+      setIsLoading(false)
     }
   }, [authData, showNotification])
 
   useEffect(() => {
-    loadEstadoAsistencia() // Se ejecuta una vez al montar el componente
-  }, [loadEstadoAsistencia])
+    if (authData && authData.user) {
+      setNombre(authData.user.nombreCompleto)
+      setArea(authData.user.area)
+      loadEstadoAsistencia()
+    }
+  }, [authData, loadEstadoAsistencia])
 
-  // Función para capturar la imagen de la webcam
   const capture = useCallback(() => {
     const imageSrc = webcamRef.current.getScreenshot()
-    return imageSrc // Devuelve la imagen en base64
+    return imageSrc
   }, [webcamRef])
 
-  // Función para manejar el registro de entrada o salida
   const handleRegistro = async (tipo) => {
     if (!authData || !authData.token) {
       showNotification(
@@ -69,8 +62,8 @@ function PaginaAsistencia() {
       return
     }
 
-    setIsLoading(true) // Bloquear botones
-    setCapturing(true) // Indicar que se está capturando
+    setIsLoading(true)
+    setCapturing(true)
 
     try {
       const imageBase64 = capture()
@@ -82,7 +75,6 @@ function PaginaAsistencia() {
         return
       }
 
-      // Convertir base64 a Blob (para enviar como MultipartFile al backend)
       const byteString = atob(imageBase64.split(',')[1])
       const mimeString = imageBase64.split(',')[0].split(':')[1].split(';')[0]
       const ab = new ArrayBuffer(byteString.length)
@@ -95,31 +87,42 @@ function PaginaAsistencia() {
       let response
       if (tipo === 'entrada') {
         response = await registrarEntrada(blob)
-        setEntradaRegistrada(true) // Actualiza el estado después de una entrada exitosa
+        setEntradaRegistrada(true)
       } else {
         response = await registrarSalida(blob)
-        setSalidaRegistrada(true) // Actualiza el estado después de una salida exitosa
+        setSalidaRegistrada(true)
       }
+
+      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+      // Accedemos a response.message para obtener solo el texto.
       showNotification(
-        response ||
+        response.message ||
           `${tipo === 'entrada' ? 'Entrada' : 'Salida'} registrada con éxito.`,
         'success'
       )
+
+      setTimeout(() => {
+        logout()
+        navigate('/')
+      }, 2000)
     } catch (error) {
       console.error(`Error al registrar ${tipo}:`, error)
       const errorMessage =
         error.response?.data?.message ||
         `Error al registrar ${tipo}. Intenta de nuevo.`
       showNotification(errorMessage, 'error')
-      // Vuelve a cargar el estado para asegurar la coherencia si hubo un error del backend
       loadEstadoAsistencia()
-    } finally {
-      setIsLoading(false) // Desbloquear botones
-      setCapturing(false) // Finalizar captura
+      setIsLoading(false)
+      setCapturing(false)
     }
   }
 
-  // Mensaje a mostrar basado en el estado de asistencia
+  const handleLogout = () => {
+    showNotification('Sesión cerrada.', 'info')
+    logout()
+    navigate('/')
+  }
+
   const getStatusMessage = () => {
     if (isLoading) {
       return 'Cargando estado de asistencia...'
@@ -173,13 +176,12 @@ function PaginaAsistencia() {
           }}
         />
 
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <Button
             variant="contained"
             color="primary"
             onClick={() => handleRegistro('entrada')}
-            disabled={isLoading || entradaRegistrada}
-          >
+            disabled={isLoading || entradaRegistrada}>
             {capturing && !salidaRegistrada
               ? 'Capturando...'
               : entradaRegistrada
@@ -190,8 +192,7 @@ function PaginaAsistencia() {
             variant="contained"
             color="secondary"
             onClick={() => handleRegistro('salida')}
-            disabled={isLoading || !entradaRegistrada || salidaRegistrada} 
-          >
+            disabled={isLoading || !entradaRegistrada || salidaRegistrada}>
             {capturing && entradaRegistrada
               ? 'Capturando...'
               : salidaRegistrada
@@ -199,8 +200,14 @@ function PaginaAsistencia() {
               : 'Registrar Salida'}
           </Button>
         </Box>
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={handleLogout}
+          disabled={isLoading}>
+          Salir
+        </Button>
 
-        {/* Mensaje de estado informativo */}
         <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
           {getStatusMessage()}
         </Typography>

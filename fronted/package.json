@@ -16,6 +16,7 @@
     "@mui/material": "^7.3.4",
     "axios": "^1.12.2",
     "jwt-decode": "^4.0.0",
+    "lodash.debounce": "^4.0.8",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.3",
