@@ -119,17 +119,17 @@ public class UsuarioService {
         Usuario entityToUpdate = usuarioRepository.findById(record.id()).orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         if (currentUser.getRol() == Rol.ADMIN) {
-            // Regla 1: Un ADMIN no puede editar a un SUPERADMIN.
+            // Un ADMIN no puede editar a un SUPERADMIN.
             if (entityToUpdate.getRol() == Rol.SUPERADMIN) {
                 throw new SecurityException("No tiene permisos para editar a un Superadministrador.");
             }
             
-            // Regla 2: Un ADMIN no puede editar a otro ADMIN (opcional, pero buena práctica).
+            // Un ADMIN no puede editar a otro ADMIN
             if (entityToUpdate.getRol() == Rol.ADMIN && !currentUser.getId().equals(entityToUpdate.getId())) {
                 throw new SecurityException("No tiene permisos para editar a otro Administrador.");
             }
 
-            // Regla 3: Un ADMIN solo puede editar usuarios de sus áreas gestionadas.
+            // Un ADMIN solo puede editar usuarios de sus áreas gestionadas.
             Set<Integer> idsDeSusAreas = currentUser.getAreasGestionadas().stream()
                                                 .map(Area::getId)
                                                 .collect(Collectors.toSet());

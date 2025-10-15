@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.Set;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
@@ -114,7 +115,7 @@ public class AsistenciaService {
         return asistenciaRepository.findAll(spec, pageable).map(this::toReporteRecord);
     }
 
-    // NUEVO: Método para obtener datos para reportes (sin paginar)
+    // Método para obtener datos para reportes (sin paginar)
     @Transactional(readOnly = true)
     public List<AsistenciaReporteRecord> getReporteData(
         Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
@@ -127,7 +128,7 @@ public class AsistenciaService {
         return asistencias.stream().map(this::toReporteRecord).collect(Collectors.toList());
     }
 
-    // NUEVO: Método privado y reutilizable para crear la consulta de filtros
+    // Método privado y reutilizable para crear la consulta de filtros
     private Specification<Asistencia> createAsistenciaSpecification(
         Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
         Optional<Integer> usuarioId, Optional<Integer> areaId,
@@ -167,7 +168,18 @@ public class AsistenciaService {
             if (currentUser.getRol() == Rol.SUPERADMIN) {
                 areaId.ifPresent(id -> predicates.add(criteriaBuilder.equal(usuarioJoin.get("areaPrincipal").get("id"), id)));
             } else if (currentUser.getRol() == Rol.ADMIN) {
-                // ... (lógica de admin sin cambios)
+                // Un Admin SÓLO puede ver las áreas que tiene asignadas
+                Set<Integer> idsDeSusAreas = currentUser.getAreasGestionadas().stream()
+                                                    .map(Area::getId)
+                                                    .collect(Collectors.toSet());
+                idsDeSusAreas.add(currentUser.getAreaPrincipal().getId());
+
+                if (idsDeSusAreas.isEmpty()) {
+                    return criteriaBuilder.disjunction();
+                }
+                
+                // Añade la condición de que el área del usuario debe estar en la lista de áreas permitidas.
+                predicates.add(usuarioJoin.get("areaPrincipal").get("id").in(idsDeSusAreas));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
@@ -231,7 +243,6 @@ public Map<String, Boolean> getEstadoAsistenciaDiario(String matricula) {
         return estado;
     }
 
-    // --- MÉTODO DE MAPEO ---
     private AsistenciaReporteRecord toReporteRecord(Asistencia entity) {
         Usuario usuario = entity.getUsuario();
         Area area = usuario.getAreaPrincipal();

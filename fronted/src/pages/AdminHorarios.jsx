@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   getHorarios,
   createHorario,
@@ -31,7 +31,6 @@ function AdminHorarios() {
       id: 'aplicaA',
       label: 'Aplica a',
       sortable: false,
-      // Usamos nuestra nueva función 'render' para mostrar el texto personalizado
       render: (row) => {
         if (row.nombreUsuario) return `Usuario: ${row.nombreUsuario}`
         if (row.nombreArea) return `Área: ${row.nombreArea}`
@@ -44,6 +43,7 @@ function AdminHorarios() {
     setEditingHorario(horario)
     setModalOpen(true)
   }
+
   const handleCloseModal = () => {
     setModalOpen(false)
     setEditingHorario(null)
@@ -72,8 +72,12 @@ function AdminHorarios() {
         await createHorario(formData)
         showNotification('Horario creado con éxito', 'success')
       }
+      setTimeout(() => setTableKey((prev) => prev + 1), 300)
     } catch (error) {
-      showNotification('Error al guardar el horario', 'error')
+      console.error('Error al guardar el horario:', error)
+      const errorMessage =
+        error.response?.data?.message || 'Error al guardar el horario'
+      showNotification(errorMessage, 'error')
     } finally {
       handleCloseModal()
       setConfirmOpen(false)
@@ -93,17 +97,15 @@ function AdminHorarios() {
     try {
       await deleteHorario(id)
       showNotification('Horario eliminado con éxito', 'success')
+      setTimeout(() => setTableKey((prev) => prev + 1), 300)
     } catch (error) {
-      showNotification('Error al eliminar el horario', 'error')
+      console.error('Error al eliminar el horario:', error)
+      const errorMessage =
+        error.response?.data?.message || 'Error al eliminar el horario'
+      showNotification(errorMessage, 'error')
     } finally {
       setConfirmOpen(false)
     }
-  }
-
-  const getAplicaA = (horario) => {
-    if (horario.idUsuario) return `Usuario: ${horario.nombreUsuario}`
-    if (horario.idArea) return `Área: ${horario.nombreArea}`
-    return 'Global'
   }
 
   return (
@@ -153,7 +155,14 @@ function AdminHorarios() {
         onSubmit={handleSubmit}
         initialData={editingHorario}
       />
-      {/* ... (ConfirmationDialog no cambia) */}
+
+      <ConfirmationDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={confirmAction}
+        title={confirmData?.title}
+        message={confirmData?.message}
+      />
     </Box>
   )
 }

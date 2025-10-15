@@ -92,15 +92,11 @@ function PaginaAsistencia() {
         response = await registrarSalida(blob)
         setSalidaRegistrada(true)
       }
-
-      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-      // Accedemos a response.message para obtener solo el texto.
       showNotification(
         response.message ||
           `${tipo === 'entrada' ? 'Entrada' : 'Salida'} registrada con éxito.`,
         'success'
       )
-
       setTimeout(() => {
         logout()
         navigate('/')

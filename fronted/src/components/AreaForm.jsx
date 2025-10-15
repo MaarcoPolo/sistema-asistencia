@@ -23,7 +23,6 @@ function AreaForm({ open, onClose, onSubmit, initialData }) {
   const [areas, setAreas] = useState([])
 
   useEffect(() => {
-    // Obtenemos la lista de áreas para el selector de "Área Padre"
     getAreasForSelect().then((response) => {
       setAreas(response.data)
     })

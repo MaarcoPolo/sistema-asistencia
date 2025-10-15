@@ -6,7 +6,7 @@ const AuthContext = createContext(null)
 
 export const AuthProvider = ({ children }) => {
   const [authData, setAuthData] = useState(null)
-  const [isAuthLoading, setAuthLoading] = useState(true) // Inicia en 'true'
+  const [isAuthLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -18,14 +18,14 @@ export const AuthProvider = ({ children }) => {
           apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`
           setAuthData({ token, user: JSON.parse(user) })
         } else {
-          localStorage.clear() // Limpia si el token ha expirado
+          localStorage.clear()
         }
       }
     } catch (e) {
       console.error('Token en localStorage inválido, limpiando sesión:', e)
       localStorage.clear()
     } finally {
-      setAuthLoading(false) // La verificación SIEMPRE termina
+      setAuthLoading(false)
     }
   }, [])
 

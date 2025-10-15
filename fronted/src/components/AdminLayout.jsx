@@ -43,7 +43,6 @@ function AdminLayout({ children }) {
         navigate('/login-admin')
     }
 
-    // Definimos las opciones del menú
     const menuItems = [
       { text: 'Asistencias', icon: <DashboardIcon />, path: '/admin/dashboard' },
       { text: 'Usuarios', icon: <PeopleIcon />, path: '/admin/usuarios' },

@@ -8,7 +8,7 @@ import {
 import AreaForm from '../components/AreaForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
-import DynamicTable from '../components/DynamicTable' // <-- Usamos la tabla dinámica
+import DynamicTable from '../components/DynamicTable'
 import { Box, Button, Typography, IconButton } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
@@ -20,15 +20,15 @@ function AdminAreas() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
-  const [tableKey, setTableKey] = useState(0) 
+  const [tableKey, setTableKey] = useState(0)
   const { showNotification } = useNotification()
 
   const columns = [
     { id: 'clave', label: 'Clave' },
     { id: 'nombre', label: 'Nombre' },
     {
-      id: 'nombreAreaPadre', // Para mostrar el dato del DTO
-      sortId: 'areaPadre.nombre', // Para enviar el ordenamiento correcto al backend
+      id: 'nombreAreaPadre',
+      sortId: 'areaPadre.nombre',
       label: 'Área Padre',
     },
     { id: 'estatus', label: 'Estatus' },
@@ -64,8 +64,12 @@ function AdminAreas() {
         await createArea(formData)
         showNotification('Área creada con éxito', 'success')
       }
+      setTimeout(() => setTableKey((prev) => prev + 1), 300)
     } catch (error) {
-      showNotification('Error al guardar el área', 'error')
+      console.error('Error al guardar el área:', error)
+      const errorMessage =
+        error.response?.data?.message || 'Error al guardar el área'
+      showNotification(errorMessage, 'error')
     } finally {
       handleCloseModal()
       setConfirmOpen(false)
@@ -85,8 +89,12 @@ function AdminAreas() {
     try {
       await deleteArea(id)
       showNotification('Área eliminada con éxito', 'success')
+      setTimeout(() => setTableKey((prev) => prev + 1), 300)
     } catch (error) {
-      showNotification('Error al eliminar el área', 'error')
+      console.error('Error al eliminar el área:', error)
+      const errorMessage =
+        error.response?.data?.message || 'Error al eliminar el área'
+      showNotification(errorMessage, 'error')
     } finally {
       setConfirmOpen(false)
     }
@@ -115,7 +123,7 @@ function AdminAreas() {
       <DynamicTable
         key={tableKey}
         columns={columns}
-        fetchDataFunction={getAreas} // Le pasamos la función para obtener áreas
+        fetchDataFunction={getAreas}
         initialSort={{ field: 'nombre', direction: 'asc' }}
         renderActions={(area) => (
           <>

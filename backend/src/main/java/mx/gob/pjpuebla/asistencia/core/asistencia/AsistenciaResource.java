@@ -41,14 +41,12 @@ public class AsistenciaResource {
     private final AreaRepository areaRepository;
 
     @PostMapping("/registrar-entrada")
-    // Se cambia @RequestBody por @RequestParam para aceptar un archivo.
     public ResponseEntity<Map<String, String>> registrarEntrada(@RequestParam("file") MultipartFile foto) {
         asistenciaService.registrarEntrada(foto);
         return ResponseEntity.ok(Map.of("message", "Entrada registrada con éxito."));
     }
 
     @PostMapping("/registrar-salida")
-    // Se cambia @RequestBody por @RequestParam para aceptar un archivo.
     public ResponseEntity<Map<String, String>> registrarSalida(@RequestParam("file") MultipartFile foto) {
         asistenciaService.registrarSalida(foto);
         return ResponseEntity.ok(Map.of("message", "Salida registrada con éxito."));
@@ -60,7 +58,7 @@ public class AsistenciaResource {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
             @RequestParam Optional<Integer> usuarioId,
             @RequestParam Optional<Integer> areaId,
-            @RequestParam Optional<String> key, // NUEVO: Parámetro para el término de búsqueda
+            @RequestParam Optional<String> key,
             @PageableDefault(size = 25, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return asistenciaService.getReporteAsistencias(fechaInicio, fechaFin, usuarioId, areaId, key, pageable);
@@ -126,7 +124,6 @@ public class AsistenciaResource {
 
         List<AsistenciaReporteRecord> data = asistenciaService.getReporteData(fechaInicio, fechaFin, usuarioId, areaId, key, soloRetardos);
         
-        // Generar el subtítulo dinámico basado en los filtros
         String subtitulo = generarSubtituloDinamico(fechaInicio, fechaFin, usuarioId, areaId, soloRetardos);
 
         byte[] pdfFile = reporteService.generarReportePdf(data, subtitulo);
@@ -144,7 +141,6 @@ public class AsistenciaResource {
                                             Optional<Boolean> soloRetardos) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         
-        // Creamos un Stream con los filtros. flatMap(Optional::stream) es una forma elegante de ignorar los Optional vacíos.
         Stream<String> filtros = Stream.of(
             fechaInicio.map(f -> "Desde: " + f.format(formatter)),
             fechaFin.map(f -> "Hasta: " + f.format(formatter)),

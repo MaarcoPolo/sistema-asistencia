@@ -11,7 +11,7 @@ import com.lowagie.text.pdf.PdfWriter;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.Font; // CORRECCIÓN: Importamos la clase Font de POI (Excel) normalmente
+import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -38,7 +38,6 @@ public class ReporteService {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Asistencias");
 
-            // Ahora 'Font' se refiere a la clase de Apache POI que importamos arriba.
             Font headerFont = workbook.createFont();
             headerFont.setBold(true);
             CellStyle headerCellStyle = workbook.createCellStyle();
@@ -78,7 +77,6 @@ public class ReporteService {
             PdfWriter.getInstance(document, out);
             document.open();
 
-            // CORRECCIÓN: Usamos el nombre completo de la clase 'Font' de OpenPDF
             com.lowagie.text.Font fontTituloPrincipal = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 16, com.lowagie.text.Font.BOLD, Color.BLACK);
             com.lowagie.text.Font fontSubtitulo = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 12, com.lowagie.text.Font.NORMAL, Color.BLACK);
             com.lowagie.text.Font fontSubtituloFiltros = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.ITALIC, Color.DARK_GRAY);

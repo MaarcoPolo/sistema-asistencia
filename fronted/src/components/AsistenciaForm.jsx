@@ -19,7 +19,7 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
   const [userLoading, setUserLoading] = useState(false)
   const [userInputValue, setUserInputValue] = useState('')
 
-  // Efecto para buscar usuarios dinámicamente
+  // para buscar usuarios dinámicamente
   useEffect(() => {
     if (!open) return
     setUserLoading(true)
@@ -32,7 +32,7 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
     return () => clearTimeout(delayDebounceFn)
   }, [userInputValue, open])
 
-  // Efecto para inicializar el formulario
+  // para inicializar el formulario
   useEffect(() => {
     if (open) {
       if (initialData) {
@@ -98,7 +98,7 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
               }))
             }}
             renderInput={(
-              params // <-- ESTA ES LA PARTE QUE FALTABA
+              params
             ) => (
               <TextField
                 {...params}

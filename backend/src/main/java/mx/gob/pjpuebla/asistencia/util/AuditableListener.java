@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 @Component
 public class AuditableListener {
 
-    // Usamos una inyección estática para poder acceder al bean de SecurityUtil
     private static SecurityUtil securityUtil;
 
     @Autowired
@@ -29,7 +28,7 @@ public class AuditableListener {
 
             String matricula = securityUtil.getCurrentUser()
                     .map(user -> user.getMatricula())
-                    .orElse("SISTEMA"); // Si no hay usuario, se queda como SISTEMA
+                    .orElse("SISTEMA");
             audit.setUsuarioAlta(matricula);
             auditable.setAudit(audit);
         }

@@ -34,7 +34,7 @@ function DynamicTable({
   )
 
   const [searchTerm, setSearchTerm] = useState('') // Lo que el usuario escribe
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('') // Lo que se envía a la API
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('') // Lo que se envía
 
   useEffect(() => {
     const timerId = setTimeout(() => {
