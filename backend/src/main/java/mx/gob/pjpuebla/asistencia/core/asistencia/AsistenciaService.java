@@ -1,6 +1,8 @@
 package mx.gob.pjpuebla.asistencia.core.asistencia;
 
 import lombok.RequiredArgsConstructor;
+import mx.gob.pjpuebla.asistencia.core.area.Area;
+import mx.gob.pjpuebla.asistencia.core.area.AreaService;
 import mx.gob.pjpuebla.asistencia.core.horario.Horario;
 import mx.gob.pjpuebla.asistencia.core.horario.HorarioRepository;
 import mx.gob.pjpuebla.asistencia.core.usuario.Usuario;
@@ -9,7 +11,6 @@ import mx.gob.pjpuebla.asistencia.security.SecurityUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import mx.gob.pjpuebla.asistencia.core.area.Area;
 import mx.gob.pjpuebla.asistencia.util.enums.Rol;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,10 +40,16 @@ public class AsistenciaService {
     private final HorarioRepository horarioRepository;
     private final SecurityUtil securityUtil;
     private final UsuarioRepository usuarioRepository;
+    private final AreaService areaService;
 
     @Transactional
     public void registrarEntrada(MultipartFile foto, String ipUsuario) {
-        Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+        String matricula = securityUtil.getCurrentUser()
+            .map(Usuario::getMatricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+            Usuario currentUser = usuarioRepository.findByMatricula(matricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
 
         Area areaUsuario = currentUser.getAreaPrincipal();
         String ipPermitida = areaUsuario.getIpPermitida();
@@ -60,12 +67,11 @@ public class AsistenciaService {
         }
 
         boolean esRetardo = esTarde(currentUser);
-
         Asistencia nuevaAsistencia = new Asistencia();
         nuevaAsistencia.setUsuario(currentUser);
         nuevaAsistencia.setFecha(hoy);
         nuevaAsistencia.setHoraEntrada(LocalDateTime.now());
-        nuevaAsistencia.setFotoEntrada(convertirMultipartABase64(foto)); // Conversión a Base64
+        nuevaAsistencia.setFotoEntrada(convertirMultipartABase64(foto));
         nuevaAsistencia.setEsRetardo(esRetardo);
         nuevaAsistencia.setIpRegistro(ipUsuario);
         
@@ -74,7 +80,12 @@ public class AsistenciaService {
 
     @Transactional
     public void registrarSalida(MultipartFile foto, String ipUsuario) {
-        Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+        String matricula = securityUtil.getCurrentUser()
+            .map(Usuario::getMatricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+            Usuario currentUser = usuarioRepository.findByMatricula(matricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
 
         Area areaUsuario = currentUser.getAreaPrincipal();
         String ipPermitida = areaUsuario.getIpPermitida();
@@ -86,7 +97,6 @@ public class AsistenciaService {
         }
 
         LocalDate hoy = LocalDate.now();
-
         Asistencia asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, hoy)
                 .orElseThrow(() -> new IllegalStateException("Debe registrar una entrada antes de registrar una salida."));
 
@@ -190,17 +200,12 @@ public class AsistenciaService {
                 areaId.ifPresent(id -> predicates.add(criteriaBuilder.equal(usuarioJoin.get("areaPrincipal").get("id"), id)));
             } else if (currentUser.getRol() == Rol.ADMIN) {
                 // Un Admin SÓLO puede ver las áreas que tiene asignadas
-                Set<Integer> idsDeSusAreas = currentUser.getAreasGestionadas().stream()
-                                                    .map(Area::getId)
-                                                    .collect(Collectors.toSet());
-                idsDeSusAreas.add(currentUser.getAreaPrincipal().getId());
+                Set<Integer> idsDeSusAreas = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
 
                 if (idsDeSusAreas.isEmpty()) {
                     return criteriaBuilder.disjunction();
                 }
-                
-                // Añade la condición de que el área del usuario debe estar en la lista de áreas permitidas.
-                predicates.add(usuarioJoin.get("areaPrincipal").get("id").in(idsDeSusAreas));
+                predicates.add(usuarioJoin.get("areaPrincipal").get("id").in(idsDeSusAreas));            
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

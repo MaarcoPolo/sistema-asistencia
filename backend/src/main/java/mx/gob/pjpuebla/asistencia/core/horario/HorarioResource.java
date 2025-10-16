@@ -9,14 +9,14 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/core/horario")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('SUPERADMIN')") // Solo el Superadmin puede gestionar horarios
+@PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
 public class HorarioResource {
 
     private final HorarioService horarioService;
 
     @GetMapping
-    public Page<HorarioRecord> getAll(Pageable pageable) {
-        return horarioService.getAll(pageable);
+    public Page<HorarioRecord> getAll(@RequestParam(required = false, defaultValue = "") String key,Pageable pageable) {
+        return horarioService.getAll(key, pageable);    
     }
 
     @PostMapping
@@ -26,6 +26,9 @@ public class HorarioResource {
 
     @PutMapping("/{id}")
     public HorarioRecord save(@PathVariable Integer id, @RequestBody HorarioRecord record) {
+        if (!id.equals(record.id())) {
+            throw new IllegalArgumentException("El ID en el path no coincide con el ID en el cuerpo de la petición.");
+        }
         return horarioService.save(record);
     }
 

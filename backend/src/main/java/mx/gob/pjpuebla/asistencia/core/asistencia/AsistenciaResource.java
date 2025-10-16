@@ -1,10 +1,8 @@
 package mx.gob.pjpuebla.asistencia.core.asistencia;
 
 import lombok.RequiredArgsConstructor;
-
 import mx.gob.pjpuebla.asistencia.core.area.AreaRepository;
 import mx.gob.pjpuebla.asistencia.core.usuario.UsuarioRepository;
-
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -13,7 +11,6 @@ import java.util.Optional;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -36,11 +33,11 @@ public class AsistenciaResource {
 
     private final AsistenciaService asistenciaService;
     private final ReporteService reporteService;
-
     private final UsuarioRepository usuarioRepository;
     private final AreaRepository areaRepository;
 
     @PostMapping("/registrar-entrada")
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Map<String, String>> registrarEntrada(@RequestParam("file") MultipartFile foto, HttpServletRequest request) {
         String ipAddress = request.getRemoteAddr();
         asistenciaService.registrarEntrada(foto,ipAddress);
@@ -48,6 +45,7 @@ public class AsistenciaResource {
     }
 
     @PostMapping("/registrar-salida")
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Map<String, String>> registrarSalida(@RequestParam("file") MultipartFile foto, HttpServletRequest request) {
         String ipAddress = request.getRemoteAddr();
         asistenciaService.registrarSalida(foto, ipAddress);
@@ -55,6 +53,7 @@ public class AsistenciaResource {
     }
 
     @GetMapping("/reporte")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public Page<AsistenciaReporteRecord> getReporte(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
@@ -94,6 +93,7 @@ public class AsistenciaResource {
     }
 
     @GetMapping("/exportar/excel")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public ResponseEntity<byte[]> exportarAExcel(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
@@ -115,6 +115,7 @@ public class AsistenciaResource {
     }
 
     @GetMapping("/exportar/pdf")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public ResponseEntity<byte[]> exportarAPdf(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,

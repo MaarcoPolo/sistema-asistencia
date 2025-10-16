@@ -32,6 +32,8 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
   const { authData } = useAuth()
   const user = authData?.user
 
+  console.log('Usuario actual en el formulario:', user)
+
   useEffect(() => {
     getAreasForSelect().then((response) => {
       setAreas(response.data)
@@ -64,10 +66,15 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
     onSubmit(formData)
   }
 
-  const availableRoles =
-    user?.rol === 'SUPERADMIN'
-      ? allRoles
-      : allRoles.filter((r) => r.value === 'USER' || r.value === 'ADMIN') // Un ADMIN puede crear otros ADMINs en sus áreas
+  const availableRoles = (() => {
+    if (user?.role === 'SUPERADMIN') {
+      return allRoles // El SUPERADMIN ve todos los roles.
+    }
+    if (user?.role === 'ADMIN') {
+      return allRoles.filter((r) => r.value === 'USER') // El ADMIN solo puede crear/editar a USER.
+    }
+    return [] // Por seguridad, no mostrar roles si el usuario no es admin.
+  })()
 
   const showPassword = formData.rol === 'ADMIN' || formData.rol === 'SUPERADMIN'
 
