@@ -63,7 +63,7 @@ public class AreaService {
         return areas.stream()
                 .filter(area -> area.getEstatus() == Estado.ACTIVE)
                 .distinct()
-                .map(area -> new AreaRecord(area.getId(), null, area.getNombre(), null, null, null, null))
+                .map(area -> new AreaRecord(area.getId(), null, area.getNombre(), null, null, null, null, null))
                 .collect(Collectors.toList());
     }
 
@@ -108,7 +108,8 @@ public class AreaService {
                 entity.getEstatus(),
                 entity.getEstatus().getEtiqueta(),
                 entity.getAreaPadre() != null ? entity.getAreaPadre().getId() : null,
-                entity.getAreaPadre() != null ? entity.getAreaPadre().getNombre() : null
+                entity.getAreaPadre() != null ? entity.getAreaPadre().getNombre() : null,
+                entity.getIpPermitida()
         );
     }
 
@@ -116,6 +117,7 @@ public class AreaService {
         entity.setClave(record.clave());
         entity.setNombre(record.nombre());
         entity.setEstatus(record.estatus());
+        entity.setIpPermitida(record.ipPermitida());
         if (record.idAreaPadre() != null) {
             Area areaPadre = areaRepository.findById(record.idAreaPadre())
                     .orElseThrow(() -> new RuntimeException("Área padre no encontrada"));

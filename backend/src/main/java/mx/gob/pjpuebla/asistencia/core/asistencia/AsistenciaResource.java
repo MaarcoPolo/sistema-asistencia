@@ -27,7 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/asistencia")
@@ -41,14 +41,16 @@ public class AsistenciaResource {
     private final AreaRepository areaRepository;
 
     @PostMapping("/registrar-entrada")
-    public ResponseEntity<Map<String, String>> registrarEntrada(@RequestParam("file") MultipartFile foto) {
-        asistenciaService.registrarEntrada(foto);
+    public ResponseEntity<Map<String, String>> registrarEntrada(@RequestParam("file") MultipartFile foto, HttpServletRequest request) {
+        String ipAddress = request.getRemoteAddr();
+        asistenciaService.registrarEntrada(foto,ipAddress);
         return ResponseEntity.ok(Map.of("message", "Entrada registrada con éxito."));
     }
 
     @PostMapping("/registrar-salida")
-    public ResponseEntity<Map<String, String>> registrarSalida(@RequestParam("file") MultipartFile foto) {
-        asistenciaService.registrarSalida(foto);
+    public ResponseEntity<Map<String, String>> registrarSalida(@RequestParam("file") MultipartFile foto, HttpServletRequest request) {
+        String ipAddress = request.getRemoteAddr();
+        asistenciaService.registrarSalida(foto, ipAddress);
         return ResponseEntity.ok(Map.of("message", "Salida registrada con éxito."));
     }
 

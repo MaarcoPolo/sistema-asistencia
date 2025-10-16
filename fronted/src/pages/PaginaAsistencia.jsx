@@ -107,9 +107,13 @@ function PaginaAsistencia() {
         error.response?.data?.message ||
         `Error al registrar ${tipo}. Intenta de nuevo.`
       showNotification(errorMessage, 'error')
+
+      setTimeout(() => {
+        logout()
+        navigate('/')
+      }, 3000)
+
       loadEstadoAsistencia()
-      setIsLoading(false)
-      setCapturing(false)
     }
   }
 

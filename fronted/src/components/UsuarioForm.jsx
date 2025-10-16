@@ -10,6 +10,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Autocomplete,
+  Chip,
 } from '@mui/material'
 import { getAreasForSelect } from '../services/areaService'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -27,7 +29,8 @@ const estados = [
 function UsuarioForm({ open, onClose, onSubmit, initialData }) {
   const [formData, setFormData] = useState({})
   const [areas, setAreas] = useState([])
-  const { user } = useAuth()
+  const { authData } = useAuth()
+  const user = authData?.user
 
   useEffect(() => {
     getAreasForSelect().then((response) => {
@@ -37,9 +40,12 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
 
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData)
+      setFormData({
+        ...initialData,
+        idsAreasGestionadas: initialData.idsAreasGestionadas || [],
+      })
     } else {
-      setFormData({ rol: 'USER', estatus: 'ACTIVE' })
+      setFormData({ rol: 'USER', estatus: 'ACTIVE', idsAreasGestionadas: [] })
     }
   }, [initialData, open])
 
@@ -48,18 +54,28 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  const handleAreasGestionadasChange = (event, newValue) => {
+    const ids = newValue.map((area) => area.id)
+    setFormData((prev) => ({ ...prev, idsAreasGestionadas: ids }))
+  }
+
   const handleSubmit = (event) => {
     event.preventDefault()
     onSubmit(formData)
   }
 
   const availableRoles =
-    user?.role === 'SUPERADMIN'
+    user?.rol === 'SUPERADMIN'
       ? allRoles
-      : allRoles.filter((r) => r.value === 'USER')
+      : allRoles.filter((r) => r.value === 'USER' || r.value === 'ADMIN') // Un ADMIN puede crear otros ADMINs en sus áreas
 
   const showPassword = formData.rol === 'ADMIN' || formData.rol === 'SUPERADMIN'
 
+  const showAreasGestionadas = formData.rol === 'ADMIN'
+
+  const selectedAreasValue = formData.idsAreasGestionadas
+    ? areas.filter((area) => formData.idsAreasGestionadas.includes(area.id))
+    : []
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
@@ -108,6 +124,7 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
               name="password"
               label="Contraseña"
               type="password"
+              onChange={handleChange}
               helperText={
                 initialData
                   ? 'Dejar en blanco para no cambiar'
@@ -115,7 +132,10 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
               }
               fullWidth
               margin="normal"
-              required={!initialData}
+              required={
+                !initialData &&
+                (formData.rol === 'ADMIN' || formData.rol === 'SUPERADMIN')
+              }
             />
           )}
 
@@ -148,6 +168,34 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
               ))}
             </Select>
           </FormControl>
+
+          {showAreasGestionadas && (
+            <Autocomplete
+              multiple
+              options={areas}
+              value={selectedAreasValue}
+              getOptionLabel={(option) => option.nombre}
+              onChange={handleAreasGestionadasChange}
+              renderTags={(value, getTagProps) =>
+                value.map((option, index) => (
+                  <Chip
+                    variant="outlined"
+                    label={option.nombre}
+                    {...getTagProps({ index })}
+                  />
+                ))
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  variant="outlined"
+                  label="Áreas Gestionadas (opcional)"
+                  placeholder="Seleccionar áreas"
+                />
+              )}
+              sx={{ mt: 2 }}
+            />
+          )}
 
           <FormControl fullWidth margin="normal">
             <InputLabel>Estatus</InputLabel>

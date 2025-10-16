@@ -15,5 +15,6 @@ public record AsistenciaReporteRecord(
     Integer areaId,
     String areaNombre,
     String fotoEntrada,
-    String fotoSalida
+    String fotoSalida,
+    String ipRegistro
 ) {}

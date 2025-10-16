@@ -11,5 +11,6 @@ public record AreaRecord(
     Estado estatus,
     String estatusEtiqueta,
     Integer idAreaPadre,
-    String nombreAreaPadre
+    String nombreAreaPadre,
+    String ipPermitida
 ) implements Serializable {}

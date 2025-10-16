@@ -42,4 +42,7 @@ public class Asistencia {
 
     @Column(name = "b_es_retardo", nullable = false)
     private Boolean esRetardo = false;
+
+    @Column(name = "s_ip_registro")
+    private String ipRegistro;
 }

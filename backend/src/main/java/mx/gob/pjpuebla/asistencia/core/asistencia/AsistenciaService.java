@@ -41,8 +41,17 @@ public class AsistenciaService {
     private final UsuarioRepository usuarioRepository;
 
     @Transactional
-    public void registrarEntrada(MultipartFile foto) {
+    public void registrarEntrada(MultipartFile foto, String ipUsuario) {
         Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        Area areaUsuario = currentUser.getAreaPrincipal();
+        String ipPermitida = areaUsuario.getIpPermitida();
+
+        if (ipPermitida != null && !ipPermitida.isBlank()) {
+            if (!ipPermitida.equals(ipUsuario)) {
+                throw new SecurityException("Estás intentando registrar la asistencia desde una dirección IP no autorizada para tu área.");
+            }
+        }
         LocalDate hoy = LocalDate.now();
 
         Optional<Asistencia> asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, LocalDate.now());
@@ -58,13 +67,24 @@ public class AsistenciaService {
         nuevaAsistencia.setHoraEntrada(LocalDateTime.now());
         nuevaAsistencia.setFotoEntrada(convertirMultipartABase64(foto)); // Conversión a Base64
         nuevaAsistencia.setEsRetardo(esRetardo);
+        nuevaAsistencia.setIpRegistro(ipUsuario);
         
         asistenciaRepository.save(nuevaAsistencia);
     }
 
     @Transactional
-    public void registrarSalida(MultipartFile foto) {
+    public void registrarSalida(MultipartFile foto, String ipUsuario) {
         Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        Area areaUsuario = currentUser.getAreaPrincipal();
+        String ipPermitida = areaUsuario.getIpPermitida();
+
+        if (ipPermitida != null && !ipPermitida.isBlank()) {
+            if (!ipPermitida.equals(ipUsuario)) {
+                throw new SecurityException("Estás intentando registrar la asistencia desde una dirección IP no autorizada para tu área.");
+            }
+        }
+
         LocalDate hoy = LocalDate.now();
 
         Asistencia asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, hoy)
@@ -76,6 +96,7 @@ public class AsistenciaService {
 
         asistenciaHoy.setHoraSalida(LocalDateTime.now());
         asistenciaHoy.setFotoSalida(convertirMultipartABase64(foto)); // Conversión a Base64
+        asistenciaHoy.setIpRegistro(ipUsuario); 
 
         asistenciaRepository.save(asistenciaHoy);
     }
@@ -261,7 +282,8 @@ public Map<String, Boolean> getEstadoAsistenciaDiario(String matricula) {
                 area.getId(),
                 area.getNombre(),
                 entity.getFotoEntrada(),
-                entity.getFotoSalida()
+                entity.getFotoSalida(),
+                entity.getIpRegistro()
         );
     }
 }

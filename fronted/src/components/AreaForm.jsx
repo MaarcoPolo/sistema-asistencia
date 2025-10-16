@@ -10,6 +10,7 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  FormHelperText,
 } from '@mui/material'
 import { getAreasForSelect } from '../services/areaService'
 
@@ -23,10 +24,17 @@ function AreaForm({ open, onClose, onSubmit, initialData }) {
   const [areas, setAreas] = useState([])
 
   useEffect(() => {
-    getAreasForSelect().then((response) => {
-      setAreas(response.data)
-    })
-  }, [])
+    if (open) {
+      // Cargar áreas solo cuando el modal se abre
+      getAreasForSelect().then((response) => {
+        // Filtramos para que un área no pueda ser su propia área padre
+        const filteredAreas = initialData
+          ? response.data.filter((area) => area.id !== initialData.id)
+          : response.data
+        setAreas(filteredAreas)
+      })
+    }
+  }, [initialData, open])
 
   useEffect(() => {
     setFormData(initialData || { estatus: 'ACTIVE' })
@@ -67,7 +75,15 @@ function AreaForm({ open, onClose, onSubmit, initialData }) {
             margin="normal"
             required
           />
-
+          <TextField
+            name="ipPermitida"
+            label="IP Permitida (Opcional)"
+            value={formData.ipPermitida || ''}
+            onChange={handleChange}
+            fullWidth
+            margin="normal"
+            helperText="Ej: 192.168.1.100. Dejar en blanco para no validar IP en esta área."
+          />
           <FormControl fullWidth margin="normal">
             <InputLabel>Área Padre (Opcional)</InputLabel>
             <Select
