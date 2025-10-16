@@ -34,7 +34,6 @@ function HorarioForm({ open, onClose, onSubmit, initialData }) {
     if (!open) return
 
     setUserLoading(true)
-    // Usamos un temporizador (debounce) para no hacer una llamada a la API en cada tecla.
     // Solo busca después de que el usuario deja de escribir por 500ms.
     const delayDebounceFn = setTimeout(() => {
       getUsuarios({ key: userInputValue, page: 0, size: 10 }).then(
@@ -55,7 +54,6 @@ function HorarioForm({ open, onClose, onSubmit, initialData }) {
 
   const handleChange = (event) => {
     const { name, value } = event.target
-    // Lógica para asegurar que solo se puede seleccionar área O usuario, no ambos.
     if (name === 'idArea') {
       setFormData((prev) => ({ ...prev, idArea: value, idUsuario: '' }))
     } else if (name === 'idUsuario') {
@@ -147,7 +145,6 @@ function HorarioForm({ open, onClose, onSubmit, initialData }) {
               setUserInputValue(newInputValue)
             }}
             onChange={(event, newValue) => {
-              // Actualizamos el formulario, deshabilitando el select de área
               setFormData((prev) => ({
                 ...prev,
                 idUsuario: newValue ? newValue.id : '',

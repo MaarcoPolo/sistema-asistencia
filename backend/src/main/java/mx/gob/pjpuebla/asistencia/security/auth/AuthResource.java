@@ -22,7 +22,6 @@ public class AuthResource {
     private final JwtTokenProvider jwtTokenProvider;
     private final UsuarioRepository usuarioRepository;
 
-    // Ya no es un endpoint, sino un método de servicio público
     public JwtResponse login(LoginRequest loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -36,7 +35,6 @@ public class AuthResource {
         return new JwtResponse(token);
     }
 
-    // Ya no es un endpoint, sino un método de servicio público
     public IdentificarResponse identificarUsuario(IdentificarRequest identificarRequest) {
         Usuario usuario = usuarioRepository.findByMatricula(identificarRequest.matricula())
                 .orElseThrow(() -> new RuntimeException("Matrícula no encontrada"));

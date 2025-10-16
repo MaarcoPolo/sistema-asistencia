@@ -1,10 +1,8 @@
 package mx.gob.pjpuebla.asistencia.core.asistencia;
 
 import lombok.RequiredArgsConstructor;
-
 import mx.gob.pjpuebla.asistencia.core.area.AreaRepository;
 import mx.gob.pjpuebla.asistencia.core.usuario.UsuarioRepository;
-
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -13,7 +11,6 @@ import java.util.Optional;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -27,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/asistencia")
@@ -36,31 +33,33 @@ public class AsistenciaResource {
 
     private final AsistenciaService asistenciaService;
     private final ReporteService reporteService;
-
     private final UsuarioRepository usuarioRepository;
     private final AreaRepository areaRepository;
 
     @PostMapping("/registrar-entrada")
-    // Se cambia @RequestBody por @RequestParam para aceptar un archivo.
-    public ResponseEntity<Map<String, String>> registrarEntrada(@RequestParam("file") MultipartFile foto) {
-        asistenciaService.registrarEntrada(foto);
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, String>> registrarEntrada(@RequestParam("file") MultipartFile foto, HttpServletRequest request) {
+        String ipAddress = request.getRemoteAddr();
+        asistenciaService.registrarEntrada(foto,ipAddress);
         return ResponseEntity.ok(Map.of("message", "Entrada registrada con éxito."));
     }
 
     @PostMapping("/registrar-salida")
-    // Se cambia @RequestBody por @RequestParam para aceptar un archivo.
-    public ResponseEntity<Map<String, String>> registrarSalida(@RequestParam("file") MultipartFile foto) {
-        asistenciaService.registrarSalida(foto);
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, String>> registrarSalida(@RequestParam("file") MultipartFile foto, HttpServletRequest request) {
+        String ipAddress = request.getRemoteAddr();
+        asistenciaService.registrarSalida(foto, ipAddress);
         return ResponseEntity.ok(Map.of("message", "Salida registrada con éxito."));
     }
 
     @GetMapping("/reporte")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public Page<AsistenciaReporteRecord> getReporte(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
             @RequestParam Optional<Integer> usuarioId,
             @RequestParam Optional<Integer> areaId,
-            @RequestParam Optional<String> key, // NUEVO: Parámetro para el término de búsqueda
+            @RequestParam Optional<String> key,
             @PageableDefault(size = 25, sort = "fecha", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         return asistenciaService.getReporteAsistencias(fechaInicio, fechaFin, usuarioId, areaId, key, pageable);
@@ -94,6 +93,7 @@ public class AsistenciaResource {
     }
 
     @GetMapping("/exportar/excel")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public ResponseEntity<byte[]> exportarAExcel(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
@@ -115,6 +115,7 @@ public class AsistenciaResource {
     }
 
     @GetMapping("/exportar/pdf")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public ResponseEntity<byte[]> exportarAPdf(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaInicio,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Optional<LocalDate> fechaFin,
@@ -126,7 +127,6 @@ public class AsistenciaResource {
 
         List<AsistenciaReporteRecord> data = asistenciaService.getReporteData(fechaInicio, fechaFin, usuarioId, areaId, key, soloRetardos);
         
-        // Generar el subtítulo dinámico basado en los filtros
         String subtitulo = generarSubtituloDinamico(fechaInicio, fechaFin, usuarioId, areaId, soloRetardos);
 
         byte[] pdfFile = reporteService.generarReportePdf(data, subtitulo);
@@ -144,7 +144,6 @@ public class AsistenciaResource {
                                             Optional<Boolean> soloRetardos) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         
-        // Creamos un Stream con los filtros. flatMap(Optional::stream) es una forma elegante de ignorar los Optional vacíos.
         Stream<String> filtros = Stream.of(
             fechaInicio.map(f -> "Desde: " + f.format(formatter)),
             fechaFin.map(f -> "Hasta: " + f.format(formatter)),

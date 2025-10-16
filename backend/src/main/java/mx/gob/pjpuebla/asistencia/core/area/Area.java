@@ -38,6 +38,9 @@ public class Area implements Serializable, Auditable {
     @JsonIgnore
     private Area areaPadre;
 
+    @Column(name = "s_ip_permitida")
+    private String ipPermitida;
+
     @Embedded
     private Audit audit;
 }

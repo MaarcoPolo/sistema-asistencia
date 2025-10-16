@@ -2,6 +2,7 @@ package mx.gob.pjpuebla.asistencia.core.area;
 
 import lombok.RequiredArgsConstructor;
 import mx.gob.pjpuebla.asistencia.core.usuario.Usuario; 
+import mx.gob.pjpuebla.asistencia.core.usuario.UsuarioRepository;
 import mx.gob.pjpuebla.asistencia.security.SecurityUtil; 
 import mx.gob.pjpuebla.asistencia.util.enums.Estado;
 import mx.gob.pjpuebla.asistencia.util.enums.Rol; 
@@ -11,16 +12,55 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList; 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set; 
+import java.util.LinkedList;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AreaService {
     private final AreaRepository areaRepository;
+    private final UsuarioRepository usuarioRepository;
     private final SecurityUtil securityUtil; 
+
+    @Transactional(readOnly = true)
+    public Set<Integer> obtenerIdsDeAreasGestionadasPorAdmin(Usuario admin) {
+        if (admin == null || admin.getRol() != Rol.ADMIN) {
+            return new HashSet<>();
+        }
+        Usuario managedAdmin = usuarioRepository.findById(admin.getId())
+            .orElseThrow(() -> new RuntimeException("No se pudo recargar el usuario Admin para verificar permisos."));
+
+        Set<Area> areasBase = new HashSet<>(managedAdmin.getAreasGestionadas());
+        areasBase.add(managedAdmin.getAreaPrincipal());
+
+        return obtenerTodosLosIdsDeAreasDescendientes(areasBase);
+    }
+
+    private Set<Integer> obtenerTodosLosIdsDeAreasDescendientes(Set<Area> areasIniciales) {
+        Set<Area> areasEncontradas = new HashSet<>(areasIniciales);
+        Queue<Area> areasAProcesar = new LinkedList<>(areasIniciales);
+
+        while (!areasAProcesar.isEmpty()) {
+            Set<Area> padresActuales = new HashSet<>();
+            while(!areasAProcesar.isEmpty()){
+                padresActuales.add(areasAProcesar.poll());
+            }
+            
+            List<Area> hijos = areaRepository.findByAreaPadreInAndEstatus(padresActuales, Estado.ACTIVE);
+
+            for (Area hijo : hijos) {
+                if (areasEncontradas.add(hijo)) {
+                    areasAProcesar.add(hijo);
+                }
+            }
+        }
+        return areasEncontradas.stream().map(Area::getId).collect(Collectors.toSet());
+    }
 
 
     @Transactional(readOnly = true)
@@ -30,15 +70,13 @@ public class AreaService {
             .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
 
         if (currentUser.getRol() == Rol.ADMIN) {
-            Set<Integer> idsDeSusAreas = currentUser.getAreasGestionadas().stream()
-                .map(Area::getId).collect(Collectors.toSet());
-            idsDeSusAreas.add(currentUser.getAreaPrincipal().getId());
-
-            Page<Area> areaPage = areaRepository.findByNombreAndIds(key, idsDeSusAreas, pageable);
+            Set<Integer> idsPermitidos = this.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (idsPermitidos.isEmpty()) return Page.empty();
+            
+            Page<Area> areaPage = areaRepository.findByNombreAndIds(key, idsPermitidos, pageable);
             return areaPage.map(this::toRecord);
         }
-
-        // Para SUPERADMIN
+        // para superadmin
         Page<Area> areaPage = areaRepository.findByNombreContainingIgnoreCaseAndEstatusNot(key, Estado.DELETED, pageable);
         return areaPage.map(this::toRecord);
     }
@@ -55,15 +93,17 @@ public class AreaService {
             areas = areaRepository.findByEstatus(Estado.ACTIVE);
         } else if (currentUser.getRol() == Rol.ADMIN) {
             // Un admin solo puede ver sus áreas gestionadas y su área principal
-            areas.addAll(currentUser.getAreasGestionadas());
-            areas.add(currentUser.getAreaPrincipal());
+            Set<Integer> idsPermitidos = this.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (!idsPermitidos.isEmpty()) {
+                areas = areaRepository.findAllById(idsPermitidos);
+            }
         }
         
         // Filtramos para evitar duplicados y asegurar que solo sean activas
         return areas.stream()
                 .filter(area -> area.getEstatus() == Estado.ACTIVE)
                 .distinct()
-                .map(area -> new AreaRecord(area.getId(), null, area.getNombre(), null, null, null, null))
+                .map(area -> new AreaRecord(area.getId(), null, area.getNombre(), null, null, null, null, null))
                 .collect(Collectors.toList());
     }
 
@@ -108,7 +148,8 @@ public class AreaService {
                 entity.getEstatus(),
                 entity.getEstatus().getEtiqueta(),
                 entity.getAreaPadre() != null ? entity.getAreaPadre().getId() : null,
-                entity.getAreaPadre() != null ? entity.getAreaPadre().getNombre() : null
+                entity.getAreaPadre() != null ? entity.getAreaPadre().getNombre() : null,
+                entity.getIpPermitida()
         );
     }
 
@@ -116,6 +157,7 @@ public class AreaService {
         entity.setClave(record.clave());
         entity.setNombre(record.nombre());
         entity.setEstatus(record.estatus());
+        entity.setIpPermitida(record.ipPermitida());
         if (record.idAreaPadre() != null) {
             Area areaPadre = areaRepository.findById(record.idAreaPadre())
                     .orElseThrow(() -> new RuntimeException("Área padre no encontrada"));

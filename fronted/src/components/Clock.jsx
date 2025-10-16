@@ -18,7 +18,6 @@ function Clock() {
 
   return (
     <Typography variant="h4" component="p" sx={{ my: 2 }}>
-      {/* Formateamos la hora a 24h para la región de México */}
       {time.toLocaleTimeString('es-MX', { hour12: false })}
     </Typography>
   )

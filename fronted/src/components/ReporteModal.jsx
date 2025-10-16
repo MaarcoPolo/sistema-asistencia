@@ -55,7 +55,7 @@ function ReporteModal({ open, onClose, onGenerate }) {
     }
   }, [open])
 
-  // Función para buscar usuarios dinámicamente con debounce
+  // Función para buscar usuarios dinámicamente
   const fetchUsuarios = useMemo(
     () =>
       debounce(async (searchTerm, callback) => {
@@ -100,9 +100,7 @@ function ReporteModal({ open, onClose, onGenerate }) {
           Generar Reporte de Asistencias
         </Typography>
 
-        {/* --- ESTRUCTURA DE FILTROS REESCRITA CON BOX --- */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {/* Renglón 1: Fechas (centradas) */}
           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
             <TextField
               name="fechaInicio"
@@ -122,7 +120,6 @@ function ReporteModal({ open, onClose, onGenerate }) {
             />
           </Box>
 
-          {/* Renglón 2: Filtro de Usuario */}
           <Box>
             <Autocomplete
               options={usuarioOptions}
@@ -156,7 +153,6 @@ function ReporteModal({ open, onClose, onGenerate }) {
             />
           </Box>
 
-          {/* Renglón 3: Filtro de Área */}
           <Box>
             <Autocomplete
               options={areaOptions}
@@ -171,7 +167,6 @@ function ReporteModal({ open, onClose, onGenerate }) {
             />
           </Box>
 
-          {/* Renglón 4: Checkbox de Retardos */}
           <Box>
             <FormControlLabel
               control={

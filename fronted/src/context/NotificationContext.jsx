@@ -18,7 +18,6 @@ export const NotificationProvider = ({ children }) => {
     if (reason === 'clickaway') {
       return
     }
-    // MODIFICADO: Al cerrar, reseteamos el estado completamente.
     setNotification({ open: false, message: '', severity: 'info' })
   }
 
@@ -30,7 +29,6 @@ export const NotificationProvider = ({ children }) => {
         autoHideDuration={4000}
         onClose={handleClose}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        {/* Usamos una condición para que el Alert no intente renderizarse si ya se cerró */}
         {notification.open && (
           <Alert
             onClose={handleClose}

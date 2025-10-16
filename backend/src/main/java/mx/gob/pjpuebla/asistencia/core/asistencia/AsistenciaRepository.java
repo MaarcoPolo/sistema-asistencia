@@ -11,6 +11,6 @@ import java.util.Optional;
 @Repository
 public interface AsistenciaRepository extends JpaRepository<Asistencia, Long>, JpaSpecificationExecutor<Asistencia> {
 
-    // Método clave para verificar si ya existe un registro para un usuario en un día específico
+    // verificar si ya existe un registro para un usuario en un día específico
     Optional<Asistencia> findByUsuarioAndFecha(Usuario usuario, LocalDate fecha);
 }

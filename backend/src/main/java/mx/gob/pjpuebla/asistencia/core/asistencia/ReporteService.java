@@ -11,7 +11,7 @@ import com.lowagie.text.pdf.PdfWriter;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.Font; // CORRECCIÓN: Importamos la clase Font de POI (Excel) normalmente
+import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -32,13 +32,12 @@ public class ReporteService {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         String[] headers = {
             "Matrícula", "Nombre Completo", "Área", "Fecha", 
-            "Hora Entrada", "Hora Salida", "Retardo"
+            "Hora Entrada", "Hora Salida", "Retardo", "IP de Registro"
         };
 
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Asistencias");
 
-            // Ahora 'Font' se refiere a la clase de Apache POI que importamos arriba.
             Font headerFont = workbook.createFont();
             headerFont.setBold(true);
             CellStyle headerCellStyle = workbook.createCellStyle();
@@ -61,6 +60,7 @@ public class ReporteService {
                 row.createCell(4).setCellValue(record.horaEntrada() != null ? record.horaEntrada().format(timeFormatter) : "---");
                 row.createCell(5).setCellValue(record.horaSalida() != null ? record.horaSalida().format(timeFormatter) : "---");
                 row.createCell(6).setCellValue(record.esRetardo() ? "Sí" : "No");
+                row.createCell(7).setCellValue(record.ipRegistro() != null ? record.ipRegistro() : "N/A");
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -78,7 +78,6 @@ public class ReporteService {
             PdfWriter.getInstance(document, out);
             document.open();
 
-            // CORRECCIÓN: Usamos el nombre completo de la clase 'Font' de OpenPDF
             com.lowagie.text.Font fontTituloPrincipal = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 16, com.lowagie.text.Font.BOLD, Color.BLACK);
             com.lowagie.text.Font fontSubtitulo = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 12, com.lowagie.text.Font.NORMAL, Color.BLACK);
             com.lowagie.text.Font fontSubtituloFiltros = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.ITALIC, Color.DARK_GRAY);
@@ -97,12 +96,12 @@ public class ReporteService {
             document.add(subtituloFiltrosParaPdf);
             document.add(new Paragraph(" "));
 
-            PdfPTable table = new PdfPTable(7);
+            PdfPTable table = new PdfPTable(8);
             table.setWidthPercentage(100);
-            table.setWidths(new float[] { 2f, 4f, 4f, 2f, 2f, 2f, 1.5f });
+            table.setWidths(new float[] { 2f, 3.5f, 3.5f, 2f, 2f, 2f, 1.5f, 2.5f });
 
             com.lowagie.text.Font fontHeader = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.BOLD, Color.WHITE);
-            String[] headers = {"Matrícula", "Nombre Completo", "Área", "Fecha", "Entrada", "Salida", "Retardo"};
+            String[] headers = {"Matrícula", "Nombre", "Área", "Fecha", "Entrada", "Salida", "Retardo", "IP Registro"};
             
             for (String headerTitle : headers) {
                 PdfPCell header = new PdfPCell();
@@ -126,6 +125,7 @@ public class ReporteService {
                 table.addCell(new Phrase(record.horaEntrada() != null ? record.horaEntrada().format(timeFormatter) : "---", fontContenido));
                 table.addCell(new Phrase(record.horaSalida() != null ? record.horaSalida().format(timeFormatter) : "---", fontContenido));
                 table.addCell(new Phrase(record.esRetardo() ? "Sí" : "No", fontContenido));
+                table.addCell(new Phrase(record.ipRegistro() != null ? record.ipRegistro() : "N/A", fontContenido));
             }
 
             document.add(table);

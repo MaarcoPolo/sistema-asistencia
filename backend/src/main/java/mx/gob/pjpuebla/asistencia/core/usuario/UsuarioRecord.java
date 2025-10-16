@@ -14,7 +14,7 @@ public record UsuarioRecord(
     String nombre,
     String apellidoPaterno,
     String apellidoMaterno,
-    String password, // Se usará solo para crear/actualizar, nunca se devolverá poblado
+    String password, // Se usará solo para crear/actualizar, nunca se devolverá informacion
     Rol rol,
     Estado estatus,
     Integer idAreaPrincipal, 

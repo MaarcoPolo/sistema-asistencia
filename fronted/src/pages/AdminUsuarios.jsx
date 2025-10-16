@@ -8,7 +8,7 @@ import {
 import UsuarioForm from '../components/UsuarioForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
-import DynamicTable from '../components/DynamicTable' // <-- Importamos nuestra tabla
+import DynamicTable from '../components/DynamicTable'
 import { Box, Button, Typography, IconButton } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
@@ -20,7 +20,6 @@ function AdminUsuarios() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
-  // 'key' para forzar la recarga de la tabla
   const [tableKey, setTableKey] = useState(0)
   const { showNotification } = useNotification()
 
@@ -68,9 +67,12 @@ function AdminUsuarios() {
         await createUsuario(formData)
         showNotification('Usuario creado con éxito', 'success')
       }
-      setTableKey((prev) => prev + 1) // Forzamos la recarga de la tabla
+      setTableKey((prev) => prev + 1)
     } catch (error) {
-      showNotification('Error al guardar el usuario', 'error')
+      console.error('Error al guardar el usuario:', error)
+      const errorMessage =
+        error.response?.data?.message || 'Error al guardar el usuario'
+      showNotification(errorMessage, 'error')
     } finally {
       handleCloseModal()
       setConfirmOpen(false)
@@ -94,7 +96,10 @@ function AdminUsuarios() {
         setTableKey((prev) => prev + 1)
       }, 300)
     } catch (error) {
-      showNotification('Error al eliminar el usuario', 'error')
+      console.error('Error al eliminar el usuario:', error)
+      const errorMessage =
+        error.response?.data?.message || 'Error al eliminar el usuario'
+      showNotification(errorMessage, 'error')      
     } finally {
       setConfirmOpen(false)
     }
@@ -120,7 +125,7 @@ function AdminUsuarios() {
       </Box>
 
       <DynamicTable
-        key={tableKey} // La key fuerza el re-montaje del componente
+        key={tableKey}
         columns={columns}
         fetchDataFunction={getUsuarios}
         initialSort={{ field: 'matricula', direction: 'asc' }}

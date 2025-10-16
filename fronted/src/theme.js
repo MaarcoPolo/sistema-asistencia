@@ -10,12 +10,12 @@ const theme = createTheme({
         },
         // El color de acento, para resaltar acciones o elementos importantes
         secondary: {
-        main: '#c4f45d', // Verde lima principal [cite: 6]
+        main: '#c4f45d', // Verde lima principal
         },
         // Colores para el texto
         text: {
-        primary: '#353535', // El color principal para el texto, casi negro [cite: 10, 11, 12, 13]
-        secondary: '#7a7b7f', // Un gris para texto secundario o descriptivo [cite: 28]
+        primary: '#353535', // El color principal para el texto, casi negro
+        secondary: '#7a7b7f', // Un gris para texto secundario o descriptivo
         },
         // Color de fondo principal
         background: {

@@ -3,7 +3,6 @@ package mx.gob.pjpuebla.asistencia.core.asistencia;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-//fila en el reporte de asistencias para el admin
 public record AsistenciaReporteRecord(
     Long idAsistencia,
     LocalDate fecha,
@@ -16,5 +15,6 @@ public record AsistenciaReporteRecord(
     Integer areaId,
     String areaNombre,
     String fotoEntrada,
-    String fotoSalida
+    String fotoSalida,
+    String ipRegistro
 ) {}

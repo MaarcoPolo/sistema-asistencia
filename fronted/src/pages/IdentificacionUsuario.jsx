@@ -30,14 +30,12 @@ function IdentificacionUsuario() {
       const estado = await getEstadoAsistenciaDiario()
 
       if (estado.entradaRegistrada && estado.salidaRegistrada) {
-        // Si ya completó su jornada, no se le permite el acceso
         showNotification(
           'Ya has registrado tu entrada y salida el día de hoy.',
           'warning'
         )
-        logout() // Se cierra la sesión temporal inmediatamente
+        logout() 
       } else {
-        // Si no ha completado su jornada, se le permite el acceso
         showNotification('Identificación exitosa. Redirigiendo...', 'success')
         navigate('/asistencia')
       }
@@ -47,7 +45,7 @@ function IdentificacionUsuario() {
         err.response?.data?.message ||
         'Error al identificar. Verifique su matrícula.'
       showNotification(errorMessage, 'error')
-      logout() // Limpiar cualquier sesión parcial si hubo un error
+      logout()
     } finally {
       setLoading(false)
     }

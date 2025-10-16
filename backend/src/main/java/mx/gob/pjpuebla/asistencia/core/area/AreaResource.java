@@ -34,7 +34,6 @@ public class AreaResource {
 
     @PutMapping("/{id}")
     public AreaRecord save(@PathVariable Integer id, @RequestBody AreaRecord area) {
-        // Aseguramos que el ID del path y el del body coincidan.
         if (!id.equals(area.id())) {
             throw new IllegalArgumentException("El ID en el path no coincide con el ID en el cuerpo de la petición.");
         }

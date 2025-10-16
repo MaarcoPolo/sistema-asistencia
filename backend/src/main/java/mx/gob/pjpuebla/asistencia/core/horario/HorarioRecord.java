@@ -10,7 +10,6 @@ public record HorarioRecord(
     Integer toleranciaMinutos,
     Integer idUsuario,
     Integer idArea,
-    // Campos derivados para mostrar en la tabla
     String nombreUsuario,
     String nombreArea
 ) {}

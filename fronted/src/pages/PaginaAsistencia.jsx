@@ -92,15 +92,11 @@ function PaginaAsistencia() {
         response = await registrarSalida(blob)
         setSalidaRegistrada(true)
       }
-
-      // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-      // Accedemos a response.message para obtener solo el texto.
       showNotification(
         response.message ||
           `${tipo === 'entrada' ? 'Entrada' : 'Salida'} registrada con éxito.`,
         'success'
       )
-
       setTimeout(() => {
         logout()
         navigate('/')
@@ -111,9 +107,13 @@ function PaginaAsistencia() {
         error.response?.data?.message ||
         `Error al registrar ${tipo}. Intenta de nuevo.`
       showNotification(errorMessage, 'error')
+
+      setTimeout(() => {
+        logout()
+        navigate('/')
+      }, 3000)
+
       loadEstadoAsistencia()
-      setIsLoading(false)
-      setCapturing(false)
     }
   }
 

@@ -10,7 +10,6 @@ import {
   Divider,
 } from '@mui/material'
 
-// Un componente simple para mostrar una imagen o un placeholder
 const PhotoDisplay = ({ photo, label }) => (
   <Box sx={{ textAlign: 'center' }}>
     <Typography variant="overline">{label}</Typography>
@@ -54,10 +53,10 @@ function AsistenciaViewModal({ open, onClose, record }) {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 500, // Ancho del modal
+          width: 500,
           bgcolor: 'background.paper',
           boxShadow: 24,
-          p: 0, // Quitamos el padding para que la Card ocupe todo
+          p: 0,
         }}>
         <Card>
           <CardContent sx={{ textAlign: 'center', p: 3 }}>

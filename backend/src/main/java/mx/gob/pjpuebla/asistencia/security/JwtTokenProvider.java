@@ -59,7 +59,6 @@ public class JwtTokenProvider {
             Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
             return true;
         } catch (Exception e) {
-            // Puedes manejar diferentes excepciones: token malformado, expirado, etc.
             return false;
         }
     }

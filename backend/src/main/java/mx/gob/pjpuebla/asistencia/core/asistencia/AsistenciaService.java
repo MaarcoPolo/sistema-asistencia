@@ -1,6 +1,8 @@
 package mx.gob.pjpuebla.asistencia.core.asistencia;
 
 import lombok.RequiredArgsConstructor;
+import mx.gob.pjpuebla.asistencia.core.area.Area;
+import mx.gob.pjpuebla.asistencia.core.area.AreaService;
 import mx.gob.pjpuebla.asistencia.core.horario.Horario;
 import mx.gob.pjpuebla.asistencia.core.horario.HorarioRepository;
 import mx.gob.pjpuebla.asistencia.core.usuario.Usuario;
@@ -9,7 +11,6 @@ import mx.gob.pjpuebla.asistencia.security.SecurityUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import mx.gob.pjpuebla.asistencia.core.area.Area;
 import mx.gob.pjpuebla.asistencia.util.enums.Rol;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.Set;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
@@ -38,10 +40,25 @@ public class AsistenciaService {
     private final HorarioRepository horarioRepository;
     private final SecurityUtil securityUtil;
     private final UsuarioRepository usuarioRepository;
+    private final AreaService areaService;
 
     @Transactional
-    public void registrarEntrada(MultipartFile foto) {
-        Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+    public void registrarEntrada(MultipartFile foto, String ipUsuario) {
+        String matricula = securityUtil.getCurrentUser()
+            .map(Usuario::getMatricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+            Usuario currentUser = usuarioRepository.findByMatricula(matricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
+
+        Area areaUsuario = currentUser.getAreaPrincipal();
+        String ipPermitida = areaUsuario.getIpPermitida();
+
+        if (ipPermitida != null && !ipPermitida.isBlank()) {
+            if (!ipPermitida.equals(ipUsuario)) {
+                throw new SecurityException("Estás intentando registrar la asistencia desde una dirección IP no autorizada para tu área.");
+            }
+        }
         LocalDate hoy = LocalDate.now();
 
         Optional<Asistencia> asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, LocalDate.now());
@@ -50,22 +67,36 @@ public class AsistenciaService {
         }
 
         boolean esRetardo = esTarde(currentUser);
-
         Asistencia nuevaAsistencia = new Asistencia();
         nuevaAsistencia.setUsuario(currentUser);
         nuevaAsistencia.setFecha(hoy);
         nuevaAsistencia.setHoraEntrada(LocalDateTime.now());
-        nuevaAsistencia.setFotoEntrada(convertirMultipartABase64(foto)); // Conversión a Base64
+        nuevaAsistencia.setFotoEntrada(convertirMultipartABase64(foto));
         nuevaAsistencia.setEsRetardo(esRetardo);
+        nuevaAsistencia.setIpRegistro(ipUsuario);
         
         asistenciaRepository.save(nuevaAsistencia);
     }
 
     @Transactional
-    public void registrarSalida(MultipartFile foto) {
-        Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
-        LocalDate hoy = LocalDate.now();
+    public void registrarSalida(MultipartFile foto, String ipUsuario) {
+        String matricula = securityUtil.getCurrentUser()
+            .map(Usuario::getMatricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
 
+            Usuario currentUser = usuarioRepository.findByMatricula(matricula)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
+
+        Area areaUsuario = currentUser.getAreaPrincipal();
+        String ipPermitida = areaUsuario.getIpPermitida();
+
+        if (ipPermitida != null && !ipPermitida.isBlank()) {
+            if (!ipPermitida.equals(ipUsuario)) {
+                throw new SecurityException("Estás intentando registrar la asistencia desde una dirección IP no autorizada para tu área.");
+            }
+        }
+
+        LocalDate hoy = LocalDate.now();
         Asistencia asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, hoy)
                 .orElseThrow(() -> new IllegalStateException("Debe registrar una entrada antes de registrar una salida."));
 
@@ -75,6 +106,7 @@ public class AsistenciaService {
 
         asistenciaHoy.setHoraSalida(LocalDateTime.now());
         asistenciaHoy.setFotoSalida(convertirMultipartABase64(foto)); // Conversión a Base64
+        asistenciaHoy.setIpRegistro(ipUsuario); 
 
         asistenciaRepository.save(asistenciaHoy);
     }
@@ -114,7 +146,7 @@ public class AsistenciaService {
         return asistenciaRepository.findAll(spec, pageable).map(this::toReporteRecord);
     }
 
-    // NUEVO: Método para obtener datos para reportes (sin paginar)
+    // Método para obtener datos para reportes (sin paginar)
     @Transactional(readOnly = true)
     public List<AsistenciaReporteRecord> getReporteData(
         Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
@@ -127,7 +159,7 @@ public class AsistenciaService {
         return asistencias.stream().map(this::toReporteRecord).collect(Collectors.toList());
     }
 
-    // NUEVO: Método privado y reutilizable para crear la consulta de filtros
+    // Método privado y reutilizable para crear la consulta de filtros
     private Specification<Asistencia> createAsistenciaSpecification(
         Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
         Optional<Integer> usuarioId, Optional<Integer> areaId,
@@ -167,7 +199,13 @@ public class AsistenciaService {
             if (currentUser.getRol() == Rol.SUPERADMIN) {
                 areaId.ifPresent(id -> predicates.add(criteriaBuilder.equal(usuarioJoin.get("areaPrincipal").get("id"), id)));
             } else if (currentUser.getRol() == Rol.ADMIN) {
-                // ... (lógica de admin sin cambios)
+                // Un Admin SÓLO puede ver las áreas que tiene asignadas
+                Set<Integer> idsDeSusAreas = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+
+                if (idsDeSusAreas.isEmpty()) {
+                    return criteriaBuilder.disjunction();
+                }
+                predicates.add(usuarioJoin.get("areaPrincipal").get("id").in(idsDeSusAreas));            
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
@@ -231,7 +269,6 @@ public Map<String, Boolean> getEstadoAsistenciaDiario(String matricula) {
         return estado;
     }
 
-    // --- MÉTODO DE MAPEO ---
     private AsistenciaReporteRecord toReporteRecord(Asistencia entity) {
         Usuario usuario = entity.getUsuario();
         Area area = usuario.getAreaPrincipal();
@@ -250,7 +287,8 @@ public Map<String, Boolean> getEstadoAsistenciaDiario(String matricula) {
                 area.getId(),
                 area.getNombre(),
                 entity.getFotoEntrada(),
-                entity.getFotoSalida()
+                entity.getFotoSalida(),
+                entity.getIpRegistro()
         );
     }
 }

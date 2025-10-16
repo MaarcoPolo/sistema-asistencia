@@ -3,6 +3,7 @@ package mx.gob.pjpuebla.asistencia.core.usuario;
 import lombok.RequiredArgsConstructor;
 import mx.gob.pjpuebla.asistencia.core.area.Area;
 import mx.gob.pjpuebla.asistencia.core.area.AreaRepository;
+import mx.gob.pjpuebla.asistencia.core.area.AreaService;
 import mx.gob.pjpuebla.asistencia.security.SecurityUtil;
 import mx.gob.pjpuebla.asistencia.util.enums.Estado;
 import mx.gob.pjpuebla.asistencia.util.enums.Rol;
@@ -25,6 +26,7 @@ public class UsuarioService {
     private final AreaRepository areaRepository;
     private final PasswordEncoder passwordEncoder;
     private final SecurityUtil securityUtil;
+    private final AreaService areaService;
 
     @Transactional(readOnly = true)
     public Page<UsuarioRecord> getAll(String key, Pageable pageable) {
@@ -39,28 +41,16 @@ public class UsuarioService {
         } 
         else if (currentUser.getRol() == Rol.ADMIN) {
 
-            // Creamos un conjunto para guardar los IDs de las áreas permitidas.
-            Set<Integer> idsDeSusAreas = currentUser.getAreasGestionadas().stream()
-                                                .map(Area::getId)
-                                                .collect(Collectors.toSet());
-
-            // Añadimos también su área principal a la lista.
-            idsDeSusAreas.add(currentUser.getAreaPrincipal().getId());
+            Set<Integer> idsDeSusAreas = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
 
             if (idsDeSusAreas.isEmpty()) {
-                // Si por alguna razón un admin no tiene áreas, no puede ver a nadie.
                 return Page.empty(pageable);
             }
-
-            // Llamamos al nuevo método del repositorio con la lista de IDs.
             usuariosPage = usuarioRepository.findByNombreCompletoInAreaIds(key, idsDeSusAreas, pageable);
-
         } 
         else {
-            // Un usuario normal no tiene permisos.
             return Page.empty(pageable);
         }
-
         return usuariosPage.map(this::toRecord);
     }
 
@@ -69,9 +59,11 @@ public class UsuarioService {
         Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
         Usuario usuarioEncontrado = usuarioRepository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        // Un admin solo puede ver usuarios de su propia área
-        if (currentUser.getRol() == Rol.ADMIN && !usuarioEncontrado.getAreaPrincipal().getId().equals(currentUser.getAreaPrincipal().getId())) {
-            throw new SecurityException("No tiene permisos para ver este usuario.");
+        if (currentUser.getRol() == Rol.ADMIN) {
+            Set<Integer> idsPermitidos = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (!idsPermitidos.contains(usuarioEncontrado.getAreaPrincipal().getId())) {
+                throw new SecurityException("No tiene permisos para ver este usuario.");
+            }
         }
         
         return toRecord(usuarioEncontrado);
@@ -83,8 +75,9 @@ public class UsuarioService {
 
         // Un admin solo puede crear usuarios en su propia área y no puede crear otros admins o superadmins
         if (currentUser.getRol() == Rol.ADMIN) {
-            if (!record.idAreaPrincipal().equals(currentUser.getAreaPrincipal().getId())) {
-                throw new SecurityException("No puede crear usuarios fuera de su área.");
+            Set<Integer> idsPermitidos = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (!idsPermitidos.contains(record.idAreaPrincipal())) {
+                throw new SecurityException("No puede crear usuarios en un área que no gestiona.");
             }
             if (record.rol() == Rol.SUPERADMIN || record.rol() == Rol.ADMIN) {
                 throw new SecurityException("No tiene permisos para crear usuarios con este rol.");
@@ -119,24 +112,14 @@ public class UsuarioService {
         Usuario entityToUpdate = usuarioRepository.findById(record.id()).orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         if (currentUser.getRol() == Rol.ADMIN) {
-            // Regla 1: Un ADMIN no puede editar a un SUPERADMIN.
+            // Un ADMIN no puede editar a un SUPERADMIN.
             if (entityToUpdate.getRol() == Rol.SUPERADMIN) {
                 throw new SecurityException("No tiene permisos para editar a un Superadministrador.");
             }
             
-            // Regla 2: Un ADMIN no puede editar a otro ADMIN (opcional, pero buena práctica).
-            if (entityToUpdate.getRol() == Rol.ADMIN && !currentUser.getId().equals(entityToUpdate.getId())) {
-                throw new SecurityException("No tiene permisos para editar a otro Administrador.");
-            }
-
-            // Regla 3: Un ADMIN solo puede editar usuarios de sus áreas gestionadas.
-            Set<Integer> idsDeSusAreas = currentUser.getAreasGestionadas().stream()
-                                                .map(Area::getId)
-                                                .collect(Collectors.toSet());
-            idsDeSusAreas.add(currentUser.getAreaPrincipal().getId());
-
-            if (!idsDeSusAreas.contains(entityToUpdate.getAreaPrincipal().getId())) {
-                throw new SecurityException("No tiene permisos para editar usuarios de esta área.");
+            Set<Integer> idsPermitidos = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (!idsPermitidos.contains(entityToUpdate.getAreaPrincipal().getId()) || !idsPermitidos.contains(record.idAreaPrincipal())) {
+                throw new SecurityException("No tiene permisos para editar usuarios de esta área o moverlos a un área no gestionada.");
             }
         }
         
@@ -155,9 +138,11 @@ public class UsuarioService {
         Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
         Usuario entity = usuarioRepository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado para eliminar"));
         
-        // Un admin solo puede eliminar usuarios de su propia área
-        if (currentUser.getRol() == Rol.ADMIN && !entity.getAreaPrincipal().getId().equals(currentUser.getAreaPrincipal().getId())) {
-            throw new SecurityException("No tiene permisos para eliminar este usuario.");
+        if (currentUser.getRol() == Rol.ADMIN) {
+            Set<Integer> idsPermitidos = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (!idsPermitidos.contains(entity.getAreaPrincipal().getId())) {
+                throw new SecurityException("No tiene permisos para eliminar este usuario.");
+            }
         }
 
         entity.setEstatus(Estado.DELETED);

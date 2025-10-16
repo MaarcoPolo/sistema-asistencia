@@ -8,8 +8,7 @@ function PublicLayout({ children }) {
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        // --- Configuración de la Imagen de Fondo ---
-        backgroundImage: 'url(/assets/background.jpg)', // Ruta a tu imagen
+        backgroundImage: 'url(/assets/background.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',

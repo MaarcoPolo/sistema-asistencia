@@ -44,7 +44,7 @@ public class SecurityConfig {
                     .anyRequest().authenticated()               // Todo lo demás requiere autenticación
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Le decimos a Spring que use nuestro filtro ANTES del filtro de login por defecto
+                // no uso el filtro de login por defecto
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

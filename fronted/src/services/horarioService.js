@@ -1,7 +1,6 @@
 import apiClient from './api'
 
 export const getHorarios = (params) => {
-  // El backend para esto aún no está hecho, pero lo preparamos
   return apiClient.get('/core/horario', { params })
 }
 
