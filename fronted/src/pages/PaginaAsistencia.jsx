@@ -57,7 +57,7 @@ function PaginaAsistencia() {
     if (!authData || !authData.token) {
       showNotification(
         'No estás autenticado. Por favor, identifícate de nuevo.',
-        'error'
+        'error',
       )
       return
     }
@@ -66,36 +66,32 @@ function PaginaAsistencia() {
     setCapturing(true)
 
     try {
+      // 1. Obtenemos el string nativo de la cámara (ej. "data:image/jpeg;base64,/9j/4AAQSk...")
       const imageBase64 = capture()
+
       if (!imageBase64) {
         showNotification(
           'No se pudo capturar la imagen. Asegúrate de que la cámara esté activa.',
-          'error'
+          'error',
         )
         return
       }
 
-      const byteString = atob(imageBase64.split(',')[1])
-      const mimeString = imageBase64.split(',')[0].split(':')[1].split(';')[0]
-      const ab = new ArrayBuffer(byteString.length)
-      const ia = new Uint8Array(ab)
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i)
-      }
-      const blob = new Blob([ab], { type: mimeString })
-
+      // 2. Eliminamos toda la lógica de conversión a Blob.
+      // Mandamos directamente el string al servicio.
       let response
       if (tipo === 'entrada') {
-        response = await registrarEntrada(blob)
+        response = await registrarEntrada(imageBase64)
         setEntradaRegistrada(true)
       } else {
-        response = await registrarSalida(blob)
+        response = await registrarSalida(imageBase64)
         setSalidaRegistrada(true)
       }
+
       showNotification(
         response.message ||
           `${tipo === 'entrada' ? 'Entrada' : 'Salida'} registrada con éxito.`,
-        'success'
+        'success',
       )
       setTimeout(() => {
         logout()

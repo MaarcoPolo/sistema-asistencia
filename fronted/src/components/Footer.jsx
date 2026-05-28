@@ -13,7 +13,7 @@ function Footer() {
             textAlign: 'center',
             }}>
             <Typography variant="body2" color="text.secondary">
-            © {new Date().getFullYear()} Poder Judicial del Estado de Puebla
+            © {new Date().getFullYear()} Sistema Estatal DIF
             </Typography>
         </Box>
     )

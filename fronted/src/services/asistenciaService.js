@@ -16,29 +16,18 @@ export const deleteAsistencia = (id) => {
   return apiClient.delete(`/asistencia/${id}`)
 }
 
-export const registrarEntrada = async (foto) => {
-  const formData = new FormData();
-  formData.append('file', foto);
-  const response = await apiClient.post('/asistencia/registrar-entrada', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
-};
+export const registrarEntrada = async (fotoBase64) => {
+  // Enviamos directamente un objeto que coincida con tu Record de Java
+  const response = await apiClient.post('/asistencia/registrar-entrada', {
+    fotoBase64: fotoBase64,
+  })
+  return response.data
+}
 
-export const registrarSalida = async (foto) => {
-  const formData = new FormData()
-  formData.append('file', foto)
-  const response = await apiClient.post(
-    '/asistencia/registrar-salida',
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }
-  )
+export const registrarSalida = async (fotoBase64) => {
+  const response = await apiClient.post('/asistencia/registrar-salida', {
+    fotoBase64: fotoBase64,
+  })
   return response.data
 }
 export const getEstadoAsistenciaDiario = async () => {

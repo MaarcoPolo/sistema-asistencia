@@ -1,0 +1,237 @@
+package mx.gob.sedif.asistencia.core.asistencia;
+
+import lombok.RequiredArgsConstructor;
+import mx.gob.sedif.asistencia.core.area.Area;
+import mx.gob.sedif.asistencia.core.area.AreaService;
+import mx.gob.sedif.asistencia.core.usuario.Usuario;
+import mx.gob.sedif.asistencia.core.usuario.UsuarioRepository;
+import mx.gob.sedif.asistencia.security.SecurityUtil;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import mx.gob.sedif.asistencia.util.enums.Rol;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Set;
+import java.time.LocalDateTime;
+
+@Service
+@RequiredArgsConstructor
+public class AsistenciaService {
+
+    private final AsistenciaRepository asistenciaRepository;
+    private final SecurityUtil securityUtil;
+    private final UsuarioRepository usuarioRepository;
+    private final AreaService areaService;
+
+    @Transactional
+    public void registrarEntrada(String fotoBase64, String ipUsuario) {
+        String numeroControl = securityUtil.getCurrentUser()
+            .map(Usuario::getNumeroControl)
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        Usuario currentUser = usuarioRepository.findByNumeroControl(numeroControl)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
+
+        Optional<Asistencia> asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, LocalDate.now());
+        if (asistenciaHoy.isPresent() && asistenciaHoy.get().getHoraEntrada() != null) {
+            throw new IllegalStateException("Ya existe un registro de entrada para hoy.");
+        }
+
+        Asistencia nuevaAsistencia = new Asistencia();
+        nuevaAsistencia.setUsuario(currentUser);
+        nuevaAsistencia.setFecha(LocalDate.now());
+        nuevaAsistencia.setHoraEntrada(LocalDateTime.now());
+        nuevaAsistencia.setFotoEntrada(fotoBase64);
+        nuevaAsistencia.setEstatusIncidencia(0); // Por defecto OK. Luego haremos el motor de reglas.
+        nuevaAsistencia.setIpRegistro(ipUsuario);
+        
+        asistenciaRepository.save(nuevaAsistencia);
+    }
+
+    @Transactional
+    public void registrarSalida(String fotoBase64, String ipUsuario) {
+        String numeroControl = securityUtil.getCurrentUser()
+            .map(Usuario::getNumeroControl)
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        Usuario currentUser = usuarioRepository.findByNumeroControl(numeroControl)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
+
+        Asistencia asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, LocalDate.now())
+                .orElseThrow(() -> new IllegalStateException("Debe registrar una entrada antes de registrar una salida."));
+
+        if (asistenciaHoy.getHoraSalida() != null) {
+            throw new IllegalStateException("Ya existe un registro de salida para hoy.");
+        }
+
+        asistenciaHoy.setHoraSalida(LocalDateTime.now());
+        asistenciaHoy.setFotoSalida(fotoBase64); 
+        asistenciaHoy.setIpRegistro(ipUsuario); 
+
+        asistenciaRepository.save(asistenciaHoy);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AsistenciaReporteRecord> getReporteAsistencias(
+        Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
+        Optional<Integer> usuarioId, Optional<Integer> areaId, Optional<String> key,
+        Pageable pageable
+    ) {
+        Specification<Asistencia> spec = createAsistenciaSpecification(fechaInicio, fechaFin, usuarioId, areaId, key, Optional.of(false)); 
+        return asistenciaRepository.findAll(spec, pageable).map(this::toReporteRecord);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AsistenciaReporteRecord> getReporteData(
+        Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
+        Optional<Integer> usuarioId, Optional<Integer> areaId,
+        Optional<String> key, Optional<Boolean> soloRetardos
+    ) {
+        Specification<Asistencia> spec = createAsistenciaSpecification(fechaInicio, fechaFin, usuarioId, areaId, key, soloRetardos);
+        List<Asistencia> asistencias = asistenciaRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "fecha"));
+        return asistencias.stream().map(this::toReporteRecord).collect(Collectors.toList());
+    }
+
+    private Specification<Asistencia> createAsistenciaSpecification(
+        Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
+        Optional<Integer> usuarioId, Optional<Integer> areaId,
+        Optional<String> key, Optional<Boolean> soloRetardos
+    ) {
+        Usuario currentUser = securityUtil.getCurrentUser().orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            Join<Asistencia, Usuario> usuarioJoin = root.join("usuario");
+
+            fechaInicio.ifPresent(fecha -> predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("fecha"), fecha)));
+            fechaFin.ifPresent(fecha -> predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("fecha"), fecha)));
+            usuarioId.ifPresent(id -> predicates.add(criteriaBuilder.equal(usuarioJoin.get("id"), id)));
+
+            key.ifPresent(searchTerm -> {
+                if (!searchTerm.isBlank()) {
+                    String pattern = "%" + searchTerm.toLowerCase() + "%";
+                    Join<Usuario, Area> areaJoin = usuarioJoin.join("areaPrincipal");
+                    predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(usuarioJoin.get("numeroControl")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(usuarioJoin.get("nombre")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(usuarioJoin.get("apellidoPaterno")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(usuarioJoin.get("apellidoMaterno")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(areaJoin.get("nombre")), pattern)
+                    ));
+                }
+            });
+
+            soloRetardos.ifPresent(retardos -> {
+                if (retardos) {
+                    predicates.add(criteriaBuilder.equal(root.get("estatusIncidencia"), 1)); // 1 = Retardo
+                }
+            });
+
+            if (currentUser.getRol() == Rol.SUPERADMIN) {
+                areaId.ifPresent(id -> predicates.add(criteriaBuilder.equal(usuarioJoin.get("areaPrincipal").get("id"), id)));
+            } else if (currentUser.getRol() == Rol.ADMIN) {
+                Set<Integer> idsDeSusAreas = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+
+                if (idsDeSusAreas.isEmpty()) {
+                    return criteriaBuilder.disjunction();
+                }
+                predicates.add(usuarioJoin.get("areaPrincipal").get("id").in(idsDeSusAreas));            
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    @Transactional
+    public AsistenciaReporteRecord createManual(AsistenciaManualRecord record) {
+        Usuario usuario = usuarioRepository.findById(record.usuarioId())
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        Asistencia entity = new Asistencia();
+        entity.setUsuario(usuario);
+        entity.setFecha(record.fecha());
+        entity.setHoraEntrada(record.horaEntrada());
+        entity.setHoraSalida(record.horaSalida());
+        entity.setEstatusIncidencia(record.estatusIncidencia() != null ? record.estatusIncidencia() : 0);
+
+        entity = asistenciaRepository.save(entity);
+        return toReporteRecord(entity);
+    }
+
+    @Transactional
+    public AsistenciaReporteRecord updateManual(Long id, AsistenciaManualRecord record) {
+        Asistencia entity = asistenciaRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Registro de asistencia no encontrado"));
+
+        Usuario usuario = usuarioRepository.findById(record.usuarioId())
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        entity.setUsuario(usuario);
+        entity.setFecha(record.fecha());
+        entity.setHoraEntrada(record.horaEntrada());
+        entity.setHoraSalida(record.horaSalida());
+        entity.setEstatusIncidencia(record.estatusIncidencia() != null ? record.estatusIncidencia() : 0);
+
+        entity = asistenciaRepository.save(entity);
+        return toReporteRecord(entity);
+    }
+
+    @Transactional 
+    public void deleteById(Long id) {
+        if (!asistenciaRepository.existsById(id)) {
+            throw new RuntimeException("Registro de asistencia no encontrado para eliminar");
+        }
+        asistenciaRepository.deleteById(id);
+    }
+
+    @Transactional(readOnly = true) 
+    public Map<String, Boolean> getEstadoAsistenciaDiario(String numeroControl) {
+        Usuario usuario = usuarioRepository.findByNumeroControl(numeroControl)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+
+        Optional<Asistencia> asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(usuario, LocalDate.now());
+
+        boolean entradaRegistrada = asistenciaHoy.map(a -> a.getHoraEntrada() != null).orElse(false);
+        boolean salidaRegistrada = asistenciaHoy.map(a -> a.getHoraSalida() != null).orElse(false);
+
+        Map<String, Boolean> estado = new HashMap<>();
+        estado.put("entradaRegistrada", entradaRegistrada);
+        estado.put("salidaRegistrada", salidaRegistrada);
+        return estado;
+    }
+
+    private AsistenciaReporteRecord toReporteRecord(Asistencia entity) {
+        Usuario usuario = entity.getUsuario();
+        Area area = usuario.getAreaPrincipal();
+        String nombreCompleto = usuario.getNombre() + " " + usuario.getApellidoPaterno() +
+                (usuario.getApellidoMaterno() != null ? " " + usuario.getApellidoMaterno() : "");
+
+        return new AsistenciaReporteRecord(
+                entity.getId(),
+                entity.getFecha(),
+                entity.getHoraEntrada(),
+                entity.getHoraSalida(),
+                entity.getEstatusIncidencia(),
+                usuario.getId(),
+                usuario.getNumeroControl(),
+                nombreCompleto.trim(),
+                area.getId(),
+                area.getNombre(),
+                entity.getFotoEntrada(),
+                entity.getFotoSalida(),
+                entity.getIpRegistro()
+        );
+    }
+}

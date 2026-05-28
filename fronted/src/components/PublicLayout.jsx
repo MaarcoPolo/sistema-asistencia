@@ -8,26 +8,28 @@ function PublicLayout({ children }) {
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        backgroundImage: 'url(/assets/background.jpg)',
+        backgroundImage: 'url(/assets/background.jpg)', // Puedes cambiar esta imagen después por algo más ad hoc
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
       }}>
       {/* ========== HEADER ========== */}
-      <AppBar position="static" color="primary">
+      <AppBar
+        position="static"
+        sx={{ backgroundColor: 'white', color: '#707070' }}>
         <Toolbar sx={{ justifyContent: 'center', gap: 2 }}>
           <img
-            src="/assets/logo_gris.png"
-            alt="Logo"
-            style={{ height: '40px', marginRight: '16px' }}
+            src="/assets/familias-dif-rosa.png"
+            alt="Logo Sistema Estatal DIF"
+            style={{ height: '45px', marginRight: '16px' }}
           />
-          <Typography variant="h6" component="div">
-            PODER JUDICIAL DEL ESTADO DE PUEBLA
+          <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+            SISTEMA ESTATAL DIF
           </Typography>
         </Toolbar>
       </AppBar>
 
-      {/* ========== CONTENIDO PRINCIPAL (EL FORMULARIO) ========== */}
+      {/* ========== CONTENIDO PRINCIPAL ========== */}
       <Container component="main" sx={{ mt: 4, mb: 4 }}>
         {children}
       </Container>
