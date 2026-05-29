@@ -9,5 +9,5 @@ public record AsistenciaManualRecord(
     LocalDate fecha,
     LocalDateTime horaEntrada,
     LocalDateTime horaSalida,
-    Integer estatusIncidencia // Cambiado de Boolean esRetardo
+    Integer estatusIncidencia 
 ) {}

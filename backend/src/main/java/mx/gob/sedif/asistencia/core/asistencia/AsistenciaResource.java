@@ -20,11 +20,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import jakarta.servlet.http.HttpServletRequest;
-
 @RestController
 @RequestMapping("/api/asistencia")
 @RequiredArgsConstructor
@@ -161,5 +161,16 @@ public class AsistenciaResource {
 
         String descripcionFiltros = filtros.collect(Collectors.joining(" - "));
         return descripcionFiltros.isEmpty() ? "Reporte General" : "Filtros Aplicados: " + descripcionFiltros;
+    }
+
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadExcelMasivo(@RequestParam("file") MultipartFile file) {
+        try {
+            Map<String, Object> resultado = asistenciaService.procesarCargaMasivaExcel(file);
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Error al procesar el archivo: " + e.getMessage()));
+        }
     }
 }

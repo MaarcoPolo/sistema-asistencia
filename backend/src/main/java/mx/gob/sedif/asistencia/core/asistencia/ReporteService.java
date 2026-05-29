@@ -31,30 +31,28 @@ public class ReporteService {
     public byte[] generarReporteExcel(List<AsistenciaReporteRecord> asistencias) throws IOException {
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
         String[] headers = {
-            "No. Control", "Nombre", "Área", "Fecha", "Entrada", "Salida", "Estatus", "IP Registro"
+            "No. Control", "Nombre Completo", "Área", "Fecha", 
+            "Hora Entrada", "Hora Salida", "Estatus", "IP de Registro"
         };
 
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Asistencias");
 
-            // Estilo para el encabezado
-            CellStyle headerStyle = workbook.createCellStyle();
             Font headerFont = workbook.createFont();
             headerFont.setBold(true);
-            headerStyle.setFont(headerFont);
+            CellStyle headerCellStyle = workbook.createCellStyle();
+            headerCellStyle.setFont(headerFont);
 
-            // Crear fila de encabezados
             Row headerRow = sheet.createRow(0);
-            for (int col = 0; col < headers.length; col++) {
-                Cell cell = headerRow.createCell(col);
-                cell.setCellValue(headers[col]);
-                cell.setCellStyle(headerStyle);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerCellStyle);
             }
 
-            // Llenar datos
-            int rowIdx = 1;
+            int rowNum = 1;
             for (AsistenciaReporteRecord record : asistencias) {
-                Row row = sheet.createRow(rowIdx++);
+                Row row = sheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(record.usuarioNumeroControl());
                 row.createCell(1).setCellValue(record.usuarioNombreCompleto());
                 row.createCell(2).setCellValue(record.areaNombre());
@@ -65,7 +63,6 @@ public class ReporteService {
                 row.createCell(7).setCellValue(record.ipRegistro() != null ? record.ipRegistro() : "N/A");
             }
 
-            // Autoajustar columnas
             for (int i = 0; i < headers.length; i++) {
                 sheet.autoSizeColumn(i);
             }
@@ -75,38 +72,41 @@ public class ReporteService {
         }
     }
 
-    public byte[] generarReportePdf(List<AsistenciaReporteRecord> asistencias, String subtitulo) throws IOException {
+    public byte[] generarReportePdf(List<AsistenciaReporteRecord> asistencias, String subtituloFiltros) throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Document document = new Document(PageSize.A4.rotate()); // Horizontal
+            Document document = new Document(PageSize.A4.rotate());
             PdfWriter.getInstance(document, out);
             document.open();
 
-            // Título
-            com.lowagie.text.Font titleFont = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 16, com.lowagie.text.Font.BOLD, Color.BLACK);
-            Paragraph title = new Paragraph("Reporte de Asistencias", titleFont);
-            title.setAlignment(Element.ALIGN_CENTER);
-            title.setSpacingAfter(5);
-            document.add(title);
+            com.lowagie.text.Font fontTituloPrincipal = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 16, com.lowagie.text.Font.BOLD, Color.BLACK);
+            com.lowagie.text.Font fontSubtitulo = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 12, com.lowagie.text.Font.NORMAL, Color.BLACK);
+            com.lowagie.text.Font fontSubtituloFiltros = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.ITALIC, Color.DARK_GRAY);
+            
+            Paragraph tituloPrincipal = new Paragraph("SISTEMA ESTATAL DIF", fontTituloPrincipal);
+            tituloPrincipal.setAlignment(Element.ALIGN_CENTER);
 
-            // Subtítulo (Filtros)
-            com.lowagie.text.Font subtitleFont = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.DARK_GRAY);
-            Paragraph subTitle = new Paragraph(subtitulo, subtitleFont);
-            subTitle.setAlignment(Element.ALIGN_CENTER);
-            subTitle.setSpacingAfter(20);
-            document.add(subTitle);
+            Paragraph subtitulo = new Paragraph("SISTEMA DE ASISTENCIA", fontSubtitulo);
+            subtitulo.setAlignment(Element.ALIGN_CENTER);
 
-            // Tabla
+            Paragraph subtituloFiltrosParaPdf = new Paragraph(subtituloFiltros, fontSubtituloFiltros);
+            subtituloFiltrosParaPdf.setAlignment(Element.ALIGN_CENTER);
+
+            document.add(tituloPrincipal);
+            document.add(subtitulo);
+            document.add(subtituloFiltrosParaPdf);
+            document.add(new Paragraph(" "));
+
             PdfPTable table = new PdfPTable(8);
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{1.5f, 3.5f, 2.5f, 1.5f, 1.5f, 1.5f, 1.5f, 2.0f});
+            table.setWidths(new float[] { 2f, 3.5f, 3.5f, 2f, 2f, 2f, 1.5f, 2.5f });
 
-            // Encabezados de la tabla
-            String[] headers = {"No. Control", "Nombre", "Área", "Fecha", "Entrada", "Salida", "Estatus", "IP Registro"};
             com.lowagie.text.Font fontHeader = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.BOLD, Color.WHITE);
+            String[] headers = {"No. Control", "Nombre", "Área", "Fecha", "Entrada", "Salida", "Estatus", "IP Registro"};
             
             for (String headerTitle : headers) {
                 PdfPCell header = new PdfPCell();
-                header.setBackgroundColor(Color.DARK_GRAY);
+                header.setBackgroundColor(new Color(63, 81, 181));
+                header.setBorderWidth(1);
                 header.setHorizontalAlignment(Element.ALIGN_CENTER);
                 header.setVerticalAlignment(Element.ALIGN_MIDDLE);
                 header.setPaddingBottom(5);
@@ -130,12 +130,13 @@ public class ReporteService {
 
             document.add(table);
             document.close();
-            
+
             return out.toByteArray();
         }
     }
 
     private String obtenerTextoIncidencia(Integer estatus) {
+        if (estatus == null) return "Desconocido";
         return switch (estatus) {
             case 0 -> "OK";
             case 1 -> "Retardo";

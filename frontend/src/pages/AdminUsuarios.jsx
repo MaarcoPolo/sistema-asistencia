@@ -24,7 +24,7 @@ function AdminUsuarios() {
   const { showNotification } = useNotification()
 
   const columns = [
-    { id: 'matricula', label: 'Matrícula' },
+    { id: 'numeroControl', label: 'No. Control' },
     { id: 'nombreCompleto', label: 'Nombre Completo', sortable: false },
     { id: 'rol', label: 'Rol' },
     {
@@ -58,6 +58,7 @@ function AdminUsuarios() {
     setConfirmData({ title, message })
     setConfirmOpen(true)
   }
+
   const executeSave = async (formData, userToEdit) => {
     try {
       if (userToEdit) {
@@ -78,6 +79,7 @@ function AdminUsuarios() {
       setConfirmOpen(false)
     }
   }
+
   const handleDeleteClick = (user) => {
     setConfirmAction(() => () => executeDelete(user.id))
     setConfirmData({
@@ -86,12 +88,11 @@ function AdminUsuarios() {
     })
     setConfirmOpen(true)
   }
+
   const executeDelete = async (id) => {
     try {
       await deleteUsuario(id)
       showNotification('Usuario eliminado con éxito', 'success')
-
-      // Aplicar la misma corrección aquí
       setTimeout(() => {
         setTableKey((prev) => prev + 1)
       }, 300)
@@ -99,11 +100,12 @@ function AdminUsuarios() {
       console.error('Error al eliminar el usuario:', error)
       const errorMessage =
         error.response?.data?.message || 'Error al eliminar el usuario'
-      showNotification(errorMessage, 'error')      
+      showNotification(errorMessage, 'error')
     } finally {
       setConfirmOpen(false)
     }
   }
+
   return (
     <Box>
       <Box
@@ -128,7 +130,7 @@ function AdminUsuarios() {
         key={tableKey}
         columns={columns}
         fetchDataFunction={getUsuarios}
-        initialSort={{ field: 'matricula', direction: 'asc' }}
+        initialSort={{ field: 'numeroControl', direction: 'asc' }}
         renderActions={(user) => (
           <>
             <IconButton color="primary" onClick={() => handleOpenModal(user)}>

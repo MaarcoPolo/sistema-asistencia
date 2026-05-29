@@ -32,8 +32,6 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
   const { authData } = useAuth()
   const user = authData?.user
 
-  console.log('Usuario actual en el formulario:', user)
-
   useEffect(() => {
     getAreasForSelect().then((response) => {
       setAreas(response.data)
@@ -68,21 +66,21 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
 
   const availableRoles = (() => {
     if (user?.role === 'SUPERADMIN') {
-      return allRoles // El SUPERADMIN ve todos los roles.
+      return allRoles
     }
     if (user?.role === 'ADMIN') {
-      return allRoles.filter((r) => r.value === 'USER') // El ADMIN solo puede crear/editar a USER.
+      return allRoles.filter((r) => r.value === 'USER')
     }
-    return [] // Por seguridad, no mostrar roles si el usuario no es admin.
+    return []
   })()
 
   const showPassword = formData.rol === 'ADMIN' || formData.rol === 'SUPERADMIN'
-
   const showAreasGestionadas = formData.rol === 'ADMIN'
 
   const selectedAreasValue = formData.idsAreasGestionadas
     ? areas.filter((area) => formData.idsAreasGestionadas.includes(area.id))
     : []
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
@@ -91,9 +89,9 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
         </DialogTitle>
         <DialogContent>
           <TextField
-            name="matricula"
-            label="Matrícula"
-            value={formData.matricula || ''}
+            name="numeroControl"
+            label="Número de Control"
+            value={formData.numeroControl || ''}
             onChange={handleChange}
             fullWidth
             margin="normal"

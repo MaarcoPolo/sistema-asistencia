@@ -8,9 +8,9 @@ public record AsistenciaReporteRecord(
     LocalDate fecha,
     LocalDateTime horaEntrada,
     LocalDateTime horaSalida,
-    Integer estatusIncidencia, // Cambiado
+    Integer estatusIncidencia, 
     Integer usuarioId,
-    String usuarioNumeroControl, // Cambiado de usuarioMatricula
+    String usuarioNumeroControl, 
     String usuarioNombreCompleto,
     Integer areaId,
     String areaNombre,

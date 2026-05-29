@@ -13,7 +13,7 @@ import { loginAdmin } from '../services/authService.js'
 import { useNotification } from '../context/NotificationContext'
 
 function LoginAdmin() {
-  const [matricula, setMatricula] = useState('')
+  const [numeroControl, setNumeroControl] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,7 +26,7 @@ function LoginAdmin() {
     try {
       setLoading(true)
       setError('')
-      const data = await loginAdmin(matricula, password)
+      const data = await loginAdmin(numeroControl, password)
       login(data)
       navigate('/admin/dashboard')
     } catch (err) {
@@ -58,12 +58,12 @@ function LoginAdmin() {
             margin="normal"
             required
             fullWidth
-            id="matricula"
-            label="Matrícula"
-            name="matricula"
+            id="numeroControl"
+            label="Número de Control"
+            name="numeroControl"
             autoFocus
-            value={matricula}
-            onChange={(e) => setMatricula(e.target.value)}
+            value={numeroControl}
+            onChange={(e) => setNumeroControl(e.target.value)}
           />
           <TextField
             margin="normal"

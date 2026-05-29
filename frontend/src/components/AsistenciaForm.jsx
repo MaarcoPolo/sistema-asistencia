@@ -7,9 +7,11 @@ import {
   TextField,
   Button,
   Autocomplete,
-  Checkbox,
-  FormControlLabel,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material'
 import { getUsuarios } from '../services/usuarioService'
 
@@ -19,7 +21,6 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
   const [userLoading, setUserLoading] = useState(false)
   const [userInputValue, setUserInputValue] = useState('')
 
-  // para buscar usuarios dinámicamente
   useEffect(() => {
     if (!open) return
     setUserLoading(true)
@@ -32,11 +33,9 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
     return () => clearTimeout(delayDebounceFn)
   }, [userInputValue, open])
 
-  // para inicializar el formulario
   useEffect(() => {
     if (open) {
       if (initialData) {
-        // Modo Edición
         const initialUser = {
           id: initialData.usuarioId,
           nombreCompleto: initialData.usuarioNombreCompleto,
@@ -45,7 +44,6 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
         setFormData({
           ...initialData,
           usuarioId: initialData.usuarioId,
-          // Formatear fechas para los inputs datetime-local
           horaEntrada: initialData.horaEntrada
             ? new Date(initialData.horaEntrada).toISOString().slice(0, 16)
             : '',
@@ -54,9 +52,8 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
             : '',
         })
       } else {
-        // Modo Creación
         setFormData({
-          esRetardo: false,
+          estatusIncidencia: 0,
           fecha: new Date().toISOString().split('T')[0],
         })
         setUserOptions([])
@@ -97,9 +94,7 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
                 usuarioId: newValue ? newValue.id : '',
               }))
             }}
-            renderInput={(
-              params
-            ) => (
+            renderInput={(params) => (
               <TextField
                 {...params}
                 label="Usuario"
@@ -149,17 +144,24 @@ function AsistenciaForm({ open, onClose, onSubmit, initialData }) {
             margin="normal"
             InputLabelProps={{ shrink: true }}
           />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formData.esRetardo || false}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, esRetardo: e.target.checked }))
-                }
-              />
-            }
-            label="Es Retardo"
-          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Estatus de Incidencia</InputLabel>
+            <Select
+              name="estatusIncidencia"
+              value={
+                formData.estatusIncidencia !== undefined
+                  ? formData.estatusIncidencia
+                  : 0
+              }
+              label="Estatus de Incidencia"
+              onChange={handleChange}>
+              <MenuItem value={0}>OK</MenuItem>
+              <MenuItem value={1}>Retardo</MenuItem>
+              <MenuItem value={2}>Falta Total</MenuItem>
+              <MenuItem value={3}>Omisión Entrada</MenuItem>
+              <MenuItem value={4}>Omisión Salida</MenuItem>
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose} color="secondary">

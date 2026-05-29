@@ -6,21 +6,29 @@ import {
   deleteAsistencia,
   exportarAsistenciasExcel,
   exportarAsistenciasPdf,
+  subirExcelMasivo,
 } from '../services/asistenciaService'
 import DynamicTable from '../components/DynamicTable'
 import AsistenciaForm from '../components/AsistenciaForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
-import { Box, Button, Typography, IconButton, TextField, Tooltip } from '@mui/material'
+import {
+  Box,
+  Button,
+  Typography,
+  IconButton,
+  TextField,
+  Tooltip,
+  Chip,
+} from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import AsistenciaViewModal from '../components/AsistenciaViewModal'
 import ReporteModal from '../components/ReporteModal'
-import AssessmentIcon from '@mui/icons-material/Assessment' 
-
-
+import AssessmentIcon from '@mui/icons-material/Assessment'
+import UploadFileIcon from '@mui/icons-material/UploadFile' // Añade este ícono
 
 function AdminDashboard() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -35,9 +43,12 @@ function AdminDashboard() {
   const [tableKey, setTableKey] = useState(0)
   const [filters, setFilters] = useState({ fechaInicio: '', fechaFin: '' })
 
-
   const columns = [
-    { id: 'usuarioMatricula', label: 'Matrícula', sortId: 'usuario.matricula' },
+    {
+      id: 'usuarioNumeroControl',
+      label: 'No. Control',
+      sortId: 'usuario.numeroControl',
+    },
     { id: 'usuarioNombreCompleto', label: 'Nombre', sortable: false },
     { id: 'areaNombre', label: 'Área', sortId: 'usuario.areaPrincipal.nombre' },
     { id: 'fecha', label: 'Fecha' },
@@ -56,22 +67,33 @@ function AdminDashboard() {
         row.horaSalida ? new Date(row.horaSalida).toLocaleTimeString() : '---',
     },
     {
-      id: 'esRetardo',
-      label: 'Retardo',
-      render: (row) => (row.esRetardo ? 'Sí' : 'No'),
+      id: 'estatusIncidencia',
+      label: 'Estatus',
+      render: (row) => {
+        switch (row.estatusIncidencia) {
+          case 0:
+            return <Chip label="OK" color="success" size="small" />
+          case 1:
+            return <Chip label="Retardo" color="warning" size="small" />
+          case 2:
+            return <Chip label="Falta Total" color="error" size="small" />
+          case 3:
+            return <Chip label="Omisión Entrada" color="error" size="small" />
+          case 4:
+            return <Chip label="Omisión Salida" color="error" size="small" />
+          default:
+            return <Chip label="Desconocido" size="small" />
+        }
+      },
     },
   ]
 
-  // Función que combina los parámetros de la tabla con nuestros filtros y llama a la API
-    const fetchDataWithFilters = async (params) => {
+  const fetchDataWithFilters = async (params) => {
     const allParams = { ...params, ...filters }
     if (!allParams.fechaInicio) delete allParams.fechaInicio
     if (!allParams.fechaFin) delete allParams.fechaFin
-
-    // El 'await' espera a que la llamada a la API termine y obtiene la respuesta
-    const response = await getReporteAsistencias(allParams)
-    return response
-    }
+    return await getReporteAsistencias(allParams)
+  }
 
   const handleOpenModal = (record = null) => {
     setEditingRecord(record)
@@ -82,10 +104,12 @@ function AdminDashboard() {
     setModalOpen(false)
     setEditingRecord(null)
   }
+
   const handleOpenViewModal = (record) => {
     setViewingRecord(record)
     setViewModalOpen(true)
   }
+
   const handleCloseViewModal = () => {
     setViewingRecord(null)
     setViewModalOpen(false)
@@ -138,13 +162,13 @@ function AdminDashboard() {
     try {
       await deleteAsistencia(id)
       showNotification('Registro eliminado con éxito', 'success')
-
       setTimeout(() => {
         setTableKey((prev) => prev + 1)
       }, 300)
     } catch (error) {
       console.error('Error al eliminar el registro:', error)
-      const errorMessage = error.response?.data?.message || 'Error al eliminar el registro'
+      const errorMessage =
+        error.response?.data?.message || 'Error al eliminar el registro'
       showNotification(errorMessage, 'error')
     } finally {
       setConfirmOpen(false)
@@ -155,6 +179,7 @@ function AdminDashboard() {
     const { name, value } = event.target
     setFilters((prev) => ({ ...prev, [name]: value }))
   }
+
   const handleGenerarReporte = async (filters, format) => {
     try {
       showNotification('Generando tu reporte, por favor espera...', 'info')
@@ -184,22 +209,60 @@ function AdminDashboard() {
         <Typography variant="h4" component="h1">
           Registro de Asistencias
         </Typography>
-        <Tooltip title="Generar Reporte">
+        <Box>
+          <Tooltip title="Generar Reporte">
+            <Button
+              variant="outlined"
+              startIcon={<AssessmentIcon />}
+              onClick={() => setReporteModalOpen(true)}
+              sx={{ mr: 2 }}>
+              Reportes
+            </Button>
+          </Tooltip>
+          <Tooltip title="Subir Excel (Biométrico)">
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={<UploadFileIcon />}
+              sx={{ mr: 2 }}>
+              Carga Masiva
+              <input
+                type="file"
+                hidden
+                accept=".xlsx, .xls"
+                onChange={async (e) => {
+                  const file = e.target.files[0]
+                  if (file) {
+                    try {
+                      showNotification(
+                        'Procesando archivo, por favor espera...',
+                        'info',
+                      )
+                      const result = await subirExcelMasivo(file)
+                      showNotification(
+                        `Carga exitosa: ${result.procesados} registrados, ${result.errores} errores.`,
+                        'success',
+                      )
+                      setTableKey((prev) => prev + 1) // Recarga la tabla
+                    } catch (error) {
+                      showNotification(
+                        error.response?.data?.message ||
+                          'Error al subir el archivo.',
+                        'error',
+                      )
+                    }
+                  }
+                }}
+              />
+            </Button>
+          </Tooltip>
           <Button
-            variant="outlined"
-            startIcon={<AssessmentIcon />}
-            onClick={() => setReporteModalOpen(true)}
-            sx={{ mr: 2 }}
-          >
-            Reportes
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenModal()}>
+            Crear Registro Manual
           </Button>
-        </Tooltip>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenModal()}>
-          Crear Registro Manual
-        </Button>
+        </Box>
       </Box>
 
       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>

@@ -37,7 +37,7 @@ export const getEstadoAsistenciaDiario = async () => {
 // Función para exportar a EXCEL
 export const exportarAsistenciasExcel = async (params) => {
   const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([, v]) => v !== null && v !== '')
+    Object.entries(params).filter(([, v]) => v !== null && v !== ''),
   )
 
   try {
@@ -51,7 +51,7 @@ export const exportarAsistenciasExcel = async (params) => {
     const link = document.createElement('a')
     link.href = url
     const contentDisposition = response.headers['content-disposition']
-    let fileName = 'reporte-asistencias.xlsx' 
+    let fileName = 'reporte-asistencias.xlsx'
     if (contentDisposition) {
       const fileNameMatch = contentDisposition.match(/filename="(.+)"/)
       if (fileNameMatch.length === 2) fileName = fileNameMatch[1]
@@ -70,7 +70,7 @@ export const exportarAsistenciasExcel = async (params) => {
 // Función para exportar a PDF
 export const exportarAsistenciasPdf = async (params) => {
   const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([, v]) => v !== null && v !== '')
+    Object.entries(params).filter(([, v]) => v !== null && v !== ''),
   )
   try {
     const response = await apiClient.get('/asistencia/exportar/pdf', {
@@ -96,4 +96,16 @@ export const exportarAsistenciasPdf = async (params) => {
     console.error('Error al exportar a PDF:', error)
     throw error
   }
+}
+
+export const subirExcelMasivo = async (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await apiClient.post('/asistencia/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response.data
 }

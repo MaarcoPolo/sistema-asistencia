@@ -14,9 +14,8 @@ import { identificarUsuario } from '../services/authService'
 import { useNotification } from '../context/NotificationContext'
 import { getEstadoAsistenciaDiario } from '../services/asistenciaService'
 
-
 function IdentificacionUsuario() {
-  const [matricula, setMatricula] = useState('')
+  const [numeroControl, setNumeroControl] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login, logout } = useAuth()
@@ -25,16 +24,17 @@ function IdentificacionUsuario() {
   const handleSubmit = async (event) => {
     event.preventDefault()
     try {
-      const data = await identificarUsuario(matricula)
+      setLoading(true)
+      const data = await identificarUsuario(numeroControl)
       login(data)
       const estado = await getEstadoAsistenciaDiario()
 
       if (estado.entradaRegistrada && estado.salidaRegistrada) {
         showNotification(
           'Ya has registrado tu entrada y salida el día de hoy.',
-          'warning'
+          'warning',
         )
-        logout() 
+        logout()
       } else {
         showNotification('Identificación exitosa. Redirigiendo...', 'success')
         navigate('/asistencia')
@@ -43,7 +43,7 @@ function IdentificacionUsuario() {
       console.error('Error en el proceso de identificación:', err)
       const errorMessage =
         err.response?.data?.message ||
-        'Error al identificar. Verifique su matrícula.'
+        'Error al identificar. Verifique su número de control.'
       showNotification(errorMessage, 'error')
       logout()
     } finally {
@@ -66,7 +66,9 @@ function IdentificacionUsuario() {
         <Typography component="h1" variant="h4" sx={{ mb: 2 }}>
           Registro de Asistencia
         </Typography>
-        <Typography>Por favor, ingrese su matrícula para continuar.</Typography>
+        <Typography>
+          Por favor, ingrese su número de control para continuar.
+        </Typography>
         <Box
           component="form"
           onSubmit={handleSubmit}
@@ -75,12 +77,12 @@ function IdentificacionUsuario() {
             margin="normal"
             required
             fullWidth
-            id="matricula"
-            label="Matrícula"
-            name="matricula"
+            id="numeroControl"
+            label="Número de Control"
+            name="numeroControl"
             autoFocus
-            value={matricula}
-            onChange={(e) => setMatricula(e.target.value)}
+            value={numeroControl}
+            onChange={(e) => setNumeroControl(e.target.value)}
             disabled={loading}
           />
           <Button
