@@ -40,19 +40,24 @@ public class Usuario implements Serializable, Auditable {
     @Column(name = "s_password")
     private String password;
 
-    @Enumerated(EnumType.ORDINAL)
+    // EnumType.STRING almacena el nombre del enum ('SUPERADMIN','ADMIN','USER').
+    // Es seguro ante reordenamiento del enum; requirió migración V3.
+    @Enumerated(EnumType.STRING)
     @Column(name = "n_rol", nullable = false)
     private Rol rol;
-    
-    @Enumerated(EnumType.ORDINAL)
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "n_estatus", nullable = false)
     private Estado estatus;
+
+    @Column(name = "b_requiere_cambio_password")
+    private Boolean requiereCambioPassword = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "fn_area_id", nullable = false)
     private Area areaPrincipal;
 
-    // ¡ESTO ES LO QUE FALTABA PARA QUE AREA SERVICE FUNCIONE!
+    /** Áreas que este usuario (con rol ADMIN) puede administrar. Vacío para rol USER. */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "tbl_admin_area", schema = "asistencia",

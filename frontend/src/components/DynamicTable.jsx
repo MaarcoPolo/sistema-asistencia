@@ -64,7 +64,7 @@ function DynamicTable({
       if (!params.key) delete params.key
 
       const response = await fetchDataFunction(params)
-      const pageData = response.data
+      const pageData = response.data?.data ?? response.data
       setData(pageData.content || [])
       setTotalElements(pageData.totalElements || 0)
     } catch (error) {

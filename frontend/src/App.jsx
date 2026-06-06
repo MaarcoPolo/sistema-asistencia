@@ -11,6 +11,8 @@ import AdminHorarios from './pages/AdminHorarios'
 import IdentificacionUsuario from './pages/IdentificacionUsuario'
 import PaginaAsistencia from './pages/PaginaAsistencia'
 import PublicLayout from './components/PublicLayout'
+import AdminJustificaciones from './pages/AdminJustificaciones'
+import MisAsistencias from './pages/MisAsistencias'
 
 function App() {
   const { authData, isAuthLoading } = useAuth()
@@ -21,7 +23,11 @@ function App() {
 
   return (
     <Routes>
-      {/* Rutas Públicas de Login */}
+      {/* ---------------------------------------------------- */}
+      {/* RUTAS PÚBLICAS DE LOGIN                              */}
+      {/* ---------------------------------------------------- */}
+      
+      {/* Login con Contraseña (Portal Completo) */}
       <Route
         path="/login-admin"
         element={
@@ -30,10 +36,12 @@ function App() {
               <LoginAdmin />
             </PublicLayout>
           ) : (
-            <Navigate to="/admin/dashboard" />
+            <Navigate to={authData.user.role === 'USER' ? '/mis-asistencias' : '/admin/dashboard'} />
           )
         }
       />
+      
+      {/* Login Rápido / Kiosco (Solo para checar) */}
       <Route
         path="/identificacion"
         element={
@@ -53,7 +61,11 @@ function App() {
         }
       />
 
-      {/* Ruta de Asistencia para el rol USER */}
+      {/* ---------------------------------------------------- */}
+      {/* RUTAS PROTEGIDAS PARA EL EMPLEADO (ROL: USER)        */}
+      {/* ---------------------------------------------------- */}
+      
+      {/* 1. Vista de Cámara (Tomar Asistencia) */}
       <Route
         path="/asistencia"
         element={
@@ -63,7 +75,19 @@ function App() {
         }
       />
 
-      {/* Rutas Protegidas para Administradores */}
+      {/* 2. NUEVA: Vista de Historial, Semáforo y Justificaciones */}
+      <Route
+        path="/mis-asistencias"
+        element={
+          <ProtectedRoute>
+            <MisAsistencias />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ---------------------------------------------------- */}
+      {/* RUTAS PROTEGIDAS PARA ADMINISTRADORES                */}
+      {/* ---------------------------------------------------- */}
       <Route
         path="/admin/dashboard"
         element={
@@ -104,8 +128,18 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/admin/justificaciones"
+        element={
+          <ProtectedRoute adminOnly={true}>
+            <AdminLayout>
+              <AdminJustificaciones />
+            </AdminLayout>
+          </ProtectedRoute>
+        }
+      />
 
-      {/* Redirección por defecto */}
+      {/* Redirección por defecto en caso de rutas no encontradas */}
       <Route
         path="*"
         element={
@@ -114,8 +148,8 @@ function App() {
               !authData
                 ? '/identificacion'
                 : authData.user.role === 'USER'
-                ? '/asistencia'
-                : '/admin/dashboard'
+                  ? '/asistencia'
+                  : '/admin/dashboard'
             }
           />
         }

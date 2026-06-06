@@ -1,6 +1,7 @@
 package mx.gob.sedif.asistencia.core.asistencia;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import mx.gob.sedif.asistencia.core.area.Area;
 import mx.gob.sedif.asistencia.core.area.AreaService;
 import mx.gob.sedif.asistencia.core.horario.*;
@@ -31,6 +32,13 @@ import org.springframework.web.multipart.MultipartFile;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import org.springframework.scheduling.annotation.Scheduled;
+import mx.gob.sedif.asistencia.core.justificacion.AsistenciaJustificacion;
+import mx.gob.sedif.asistencia.core.justificacion.AsistenciaJustificacionRepository;
+import mx.gob.sedif.asistencia.core.justificacion.CatalogoJustificacion;
+import mx.gob.sedif.asistencia.core.justificacion.CatalogoJustificacionRepository;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AsistenciaService {
@@ -42,6 +50,9 @@ public class AsistenciaService {
     private final UsuarioRepository usuarioRepository;
     private final AreaService areaService;
 
+    private final AsistenciaJustificacionRepository asistenciaJustificacionRepository;
+    private final CatalogoJustificacionRepository catalogoJustificacionRepository;
+
     // Constantes del Catálogo de Incidencias
     private static final int ESTATUS_OK = 0;
     private static final int ESTATUS_RETARDO = 1;
@@ -49,9 +60,23 @@ public class AsistenciaService {
     private static final int ESTATUS_OMISION_ENTRADA = 3;
     private static final int ESTATUS_OMISION_SALIDA = 4;
 
-    /* ====================================================================================
-     * REGLA 1: REGISTRO DE ENTRADA Y CÁLCULO DE RETARDOS
-     * ==================================================================================== */
+    /**
+     * Registra la entrada del usuario autenticado para el día actual.
+     * Calcula el estatus de incidencia (OK / Retardo / Falta Total) comparando
+     * la hora actual con la hora de entrada del horario asignado.
+     *
+     * <p>Reglas de tiempo (con precisión de segundos):
+     * <ul>
+     *   <li>Hasta +15:59 min → OK</li>
+     *   <li>+16:00 a +30:59 min → Retardo</li>
+     *   <li>Más de +30:59 min → Falta Total</li>
+     * </ul>
+     *
+     * @param fotoBase64 Captura de cámara en formato Base64 (puede ser null).
+     * @param ipUsuario  IP del cliente para validación de ubicación.
+     * @throws IllegalStateException si ya existe una entrada registrada hoy.
+     * @throws SecurityException     si la IP no coincide con la del área.
+     */
     @Transactional
     public void registrarEntrada(String fotoBase64, String ipUsuario) {
         String numeroControl = securityUtil.getCurrentUser()
@@ -62,42 +87,42 @@ public class AsistenciaService {
             .orElseThrow(() -> new RuntimeException("Usuario no encontrado en la base de datos"));
 
         LocalDate hoy = LocalDate.now();
-        LocalTime ahora = LocalTime.now();
+        LocalDateTime ahoraCompleto = LocalDateTime.now(); // Usamos LocalDateTime para precisión de segundos
 
-        // 1.1 Validación de Seguridad: Evitar doble entrada
         Optional<Asistencia> asistenciaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, hoy);
         if (asistenciaHoy.isPresent() && asistenciaHoy.get().getHoraEntrada() != null) {
             throw new IllegalStateException("Ya tienes un registro de entrada para el día de hoy.");
         }
 
-        // 1.2 Validación de Red: Bloqueo por IP (Si el área lo exige)
         Area areaUsuario = currentUser.getAreaPrincipal();
         String ipPermitida = areaUsuario.getIpPermitida();
         if (ipPermitida != null && !ipPermitida.isBlank() && !ipPermitida.equals(ipUsuario)) {
              throw new SecurityException("Estás intentando registrar asistencia desde una ubicación (IP) no autorizada.");
         }
 
-        // 1.3 Motor de Incidencias: ¿Llegó tarde?
         int estatusIncidencia = ESTATUS_OK; 
         HorarioDetalle turnoDeHoy = calcularTurnoParaFecha(currentUser, hoy);
 
         if (turnoDeHoy != null) {
-            LocalTime horaEsperada = turnoDeHoy.getHoraEntrada();
-            int minutosTolerancia = turnoDeHoy.getToleranciaMinutos();
-            LocalTime horaLimiteTolerancia = horaEsperada.plusMinutes(minutosTolerancia);
+            // Unimos la fecha de hoy con su hora de entrada esperada
+            LocalDateTime fechaHoraEsperada = LocalDateTime.of(hoy, turnoDeHoy.getHoraEntrada());
+            
+            // Tolerancia: hasta +15:59 min = OK; hasta +30:59 min = Retardo; más = Falta Total.
+            LocalDateTime limiteOk = fechaHoraEsperada.plusMinutes(15).plusSeconds(59);
+            LocalDateTime limiteRetardo = fechaHoraEsperada.plusMinutes(30).plusSeconds(59);
 
-            // Si la hora actual es posterior a su hora límite, se marca como Retardo
-            if (ahora.isAfter(horaLimiteTolerancia)) {
-                estatusIncidencia = ESTATUS_RETARDO;
-                // NOTA FUTURA: Aquí podrías agregar otra condición. Ej: Si llega 2 horas tarde = Falta Total (2).
+            // Validamos en cascada inversa
+            if (ahoraCompleto.isAfter(limiteRetardo)) {
+                estatusIncidencia = ESTATUS_FALTA_TOTAL; // Llegó después de 30:59 mins = Falta
+            } else if (ahoraCompleto.isAfter(limiteOk)) {
+                estatusIncidencia = ESTATUS_RETARDO; // Llegó entre 16:00 y 30:59 mins = Retardo
             }
         }
 
-        // 1.4 Guardado de la Información
         Asistencia nuevaAsistencia = asistenciaHoy.orElse(new Asistencia());
         nuevaAsistencia.setUsuario(currentUser);
         nuevaAsistencia.setFecha(hoy);
-        nuevaAsistencia.setHoraEntrada(LocalDateTime.now());
+        nuevaAsistencia.setHoraEntrada(ahoraCompleto);
         nuevaAsistencia.setFotoEntrada(fotoBase64);
         nuevaAsistencia.setIpRegistro(ipUsuario);
         nuevaAsistencia.setEstatusIncidencia(estatusIncidencia);
@@ -105,9 +130,16 @@ public class AsistenciaService {
         asistenciaRepository.save(nuevaAsistencia);
     }
 
-    /* ====================================================================================
-     * REGLA 2: REGISTRO DE SALIDA Y CRUCE DE MEDIANOCHE
-     * ==================================================================================== */
+    /**
+     * Registra la salida del usuario autenticado.
+     * Soporta turnos con cruce de medianoche: si no hay entrada hoy, busca en
+     * la asistencia de ayer siempre que el horario de ayer tenga
+     * {@code cruceMedianoche = true} y la salida aún no esté registrada.
+     *
+     * @param fotoBase64 Captura de cámara (puede ser null).
+     * @param ipUsuario  IP del cliente.
+     * @throws IllegalStateException si no hay entrada previa o ya se registró salida.
+     */
     @Transactional
     public void registrarSalida(String fotoBase64, String ipUsuario) {
         String numeroControl = securityUtil.getCurrentUser()
@@ -120,27 +152,23 @@ public class AsistenciaService {
         LocalDate hoy = LocalDate.now();
         Asistencia asistenciaParaSalida = null;
 
-        // 2.1 Búsqueda Estándar: Buscar si tiene entrada el día de hoy
         Optional<Asistencia> busquedaHoy = asistenciaRepository.findByUsuarioAndFecha(currentUser, hoy);
         
         if (busquedaHoy.isPresent() && busquedaHoy.get().getHoraEntrada() != null) {
             asistenciaParaSalida = busquedaHoy.get();
         } 
-        // 2.2 Búsqueda de Cruce de Medianoche: Si no hay entrada hoy, buscamos si entró AYER y su turno cruza la medianoche
         else {
             LocalDate ayer = hoy.minusDays(1);
             HorarioDetalle turnoDeAyer = calcularTurnoParaFecha(currentUser, ayer);
             
             if (turnoDeAyer != null && turnoDeAyer.getHorario().getCruceMedianoche()) {
                 Optional<Asistencia> busquedaAyer = asistenciaRepository.findByUsuarioAndFecha(currentUser, ayer);
-                // Si encontramos un registro de ayer y todavía no tiene salida registrada, lo usamos
                 if (busquedaAyer.isPresent() && busquedaAyer.get().getHoraSalida() == null) {
                     asistenciaParaSalida = busquedaAyer.get();
                 }
             }
         }
 
-        // 2.3 Validaciones Finales
         if (asistenciaParaSalida == null) {
             throw new IllegalStateException("Debe registrar una entrada antes de poder registrar su salida.");
         }
@@ -148,34 +176,34 @@ public class AsistenciaService {
             throw new IllegalStateException("Ya ha registrado una salida para este turno.");
         }
 
-        // 2.4 Guardado de la Información
         asistenciaParaSalida.setHoraSalida(LocalDateTime.now());
         asistenciaParaSalida.setFotoSalida(fotoBase64); 
-        // Solo actualizamos la IP si la salida también requiere validación, o guardamos la última conocida
         asistenciaParaSalida.setIpRegistro(ipUsuario); 
 
         asistenciaRepository.save(asistenciaParaSalida);
     }
 
-    /* ====================================================================================
-     * EL CEREBRO: MOTOR DE CÁLCULO DE TURNOS Y EXCEPCIONES
-     * ==================================================================================== */
+    /**
+     * Determina el {@link HorarioDetalle} vigente para un usuario en una fecha dada.
+     * Consulta primero excepciones individuales; si hay una excepción de día no laborable,
+     * retorna {@code null}. Para horarios semanales usa el día ISO; para ciclos rotativos
+     * calcula el día del ciclo desde {@code fechaInicioCiclo}.
+     *
+     * @param usuario        Usuario a evaluar.
+     * @param fechaRequerida Fecha para la que se busca el turno.
+     * @return El {@link HorarioDetalle} del turno, o {@code null} si no labora ese día.
+     */
     private HorarioDetalle calcularTurnoParaFecha(Usuario usuario, LocalDate fechaRequerida) {
-        
-        // 3.1 Verificamos si Recursos Humanos metió una Excepción Manual (Vacaciones, incapacidad, cambio forzado)
         Optional<ExcepcionHorario> excepcion = excepcionHorarioRepository.findByUsuarioIdAndFechaEspecifica(usuario.getId(), fechaRequerida);
         if (excepcion.isPresent()) {
             if (!excepcion.get().getLabora()) {
-                return null; // Si RH dijo que NO labora, devolvemos nulo para que el sistema sepa que es su descanso.
+                return null; 
             }
-            // Si labora, pero tiene horario especial, la DB actual no tiene campo para "Id Horario Especial",
-            // así que asumimos que aplica su horario base pero es obligatorio que asista.
         }
 
-        // 3.2 Obtenemos la asignación del horario del usuario
         Optional<HorarioUsuario> asignacionOpt = horarioUsuarioRepository.findByUsuarioId(usuario.getId());
         if (asignacionOpt.isEmpty()) {
-            return null; // No tiene horario asignado
+            return null; 
         }
         
         HorarioUsuario asignacion = asignacionOpt.get();
@@ -186,38 +214,27 @@ public class AsistenciaService {
 
         int diaActivo = 0;
 
-        // 3.3 CÁLCULO TIPO 1: Semanal Clásico (Lunes a Viernes)
         if (horario.getTipoCiclo() == 1) {
-            // getDayOfWeek().getValue() devuelve 1 (Lunes) hasta 7 (Domingo)
             diaActivo = fechaRequerida.getDayOfWeek().getValue();
         } 
-        // 3.4 CÁLCULO TIPO 2: Turnos Rotativos (Ej. 1x1, 24x48)
         else if (horario.getTipoCiclo() == 2 && asignacion.getFechaInicioCiclo() != null) {
             LocalDate fechaPivote = asignacion.getFechaInicioCiclo();
             
-            // Si la fecha que buscamos es anterior al día que lo contrataron/inició el ciclo, no hay turno
             if (fechaRequerida.isBefore(fechaPivote)) {
                 return null; 
             }
 
-            // Calculamos cuántos días de duración tiene el ciclo total buscando el día más alto en los detalles
-            // Ej: Un 1x1 tiene un detalle para el día 1. El día 2 es descanso. El ciclo dura 2 días.
             int longitudDelCiclo = detalles.stream().mapToInt(HorarioDetalle::getDia).max().orElse(1);
-            
             long diasTranscurridos = ChronoUnit.DAYS.between(fechaPivote, fechaRequerida);
-            
-            // Matemática modular: Si pasaron 5 días en un ciclo de 2. (5 % 2) = 1. Más 1 = Día 2 del ciclo.
             diaActivo = (int) (diasTranscurridos % longitudDelCiclo) + 1;
         }
 
-        // 3.5 Buscamos en la lista de detalles el día que acabamos de calcular
         final int diaBuscado = diaActivo;
         return detalles.stream()
                 .filter(d -> d.getDia() == diaBuscado)
                 .findFirst()
-                .orElse(null); // Si el día no está en los detalles, significa que hoy es su día de descanso.
+                .orElse(null); 
     }
-
 
     /* ====================================================================================
      * REPORTES Y CONSULTAS PARA ADMINISTRADORES
@@ -359,6 +376,10 @@ public class AsistenciaService {
         String nombreCompleto = usuario.getNombre() + " " + usuario.getApellidoPaterno() +
                 (usuario.getApellidoMaterno() != null ? " " + usuario.getApellidoMaterno() : "");
 
+                String motivo = entity.getJustificacionAplicada() != null 
+                ? entity.getJustificacionAplicada().getJustificacion().getNombre() 
+                : null;
+
         return new AsistenciaReporteRecord(
                 entity.getId(),
                 entity.getFecha(),
@@ -372,7 +393,8 @@ public class AsistenciaService {
                 area.getNombre(),
                 entity.getFotoEntrada(),
                 entity.getFotoSalida(),
-                entity.getIpRegistro()
+                entity.getIpRegistro(),
+                motivo
         );
     }
 
@@ -383,20 +405,17 @@ public class AsistenciaService {
         List<String> detalleErrores = new ArrayList<>();
 
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
-            Sheet sheet = workbook.getSheetAt(0); // Leer la primera pestaña del Excel
+            Sheet sheet = workbook.getSheetAt(0); 
 
             for (Row row : sheet) {
-                if (row.getRowNum() == 0) continue; // Saltar la fila 0 (los encabezados)
+                if (row.getRowNum() == 0) continue; 
 
                 try {
-                    // 1. Extraer Número de Control (Columna A)
                     String numeroControl = getCellValueAsString(row.getCell(0));
                     if (numeroControl.isBlank()) continue;
 
-                    // 2. Extraer Fecha (Columna B)
                     LocalDate fecha = row.getCell(1).getLocalDateTimeCellValue().toLocalDate();
                     
-                    // 3. Extraer Entrada y Salida (Columnas C y D)
                     LocalDateTime horaEntrada = null;
                     if (row.getCell(2) != null && row.getCell(2).getCellType() != CellType.BLANK) {
                         horaEntrada = LocalDateTime.of(fecha, row.getCell(2).getLocalDateTimeCellValue().toLocalTime());
@@ -407,26 +426,48 @@ public class AsistenciaService {
                         horaSalida = LocalDateTime.of(fecha, row.getCell(3).getLocalDateTimeCellValue().toLocalTime());
                     }
 
-                    // 4. Buscar al empleado en la base de datos
                     Usuario usuario = usuarioRepository.findByNumeroControl(numeroControl)
                         .orElseThrow(() -> new RuntimeException("Usuario no existe: " + numeroControl));
 
-                    // 5. ¡El Cerebro Matemático entra en acción!
                     int estatusIncidencia = ESTATUS_OK;
                     HorarioDetalle turno = calcularTurnoParaFecha(usuario, fecha);
 
                     if (turno != null) {
-                        if (horaEntrada != null) {
-                            LocalTime limite = turno.getHoraEntrada().plusMinutes(turno.getToleranciaMinutos());
-                            if (horaEntrada.toLocalTime().isAfter(limite)) {
-                                estatusIncidencia = ESTATUS_RETARDO;
+                        // Caso A: No vino a trabajar (Celdas vacías)
+                        if (horaEntrada == null && horaSalida == null) {
+                            estatusIncidencia = ESTATUS_FALTA_TOTAL;
+                        } 
+                        // Caso B: Olvidó checar entrada, pero sí tiene salida
+                        else if (horaEntrada == null && horaSalida != null) {
+                            estatusIncidencia = ESTATUS_OMISION_ENTRADA;
+                        } 
+                        // Caso C: Checó entrada, pero olvidó su salida
+                        else if (horaEntrada != null && horaSalida == null) {
+                            estatusIncidencia = ESTATUS_OMISION_SALIDA;
+                        } 
+                        // Caso D: ambos registros presentes — se evalúa puntualidad y salida completa.
+                        else if (horaEntrada != null && horaSalida != null) {
+                            LocalTime salidaOficial = turno.getHoraSalida();
+                            LocalTime salidaReal = horaSalida.toLocalTime();
+
+                            // Salió antes de su hora oficial → Falta Total independientemente de la entrada.
+                            if (salidaReal.isBefore(salidaOficial)) {
+                                estatusIncidencia = ESTATUS_FALTA_TOTAL;
+                            } else {
+                                // Cumplió salida: evaluamos la llegada con la misma tolerancia que el registro en línea.
+                                LocalDateTime fechaHoraEsperada = LocalDateTime.of(fecha, turno.getHoraEntrada());
+                                LocalDateTime limiteOk = fechaHoraEsperada.plusMinutes(15).plusSeconds(59);
+                                LocalDateTime limiteRetardo = fechaHoraEsperada.plusMinutes(30).plusSeconds(59);
+
+                                if (horaEntrada.isAfter(limiteRetardo)) {
+                                    estatusIncidencia = ESTATUS_FALTA_TOTAL;
+                                } else if (horaEntrada.isAfter(limiteOk)) {
+                                    estatusIncidencia = ESTATUS_RETARDO;
+                                }
                             }
-                        } else {
-                            estatusIncidencia = ESTATUS_FALTA_TOTAL; // Tenía turno pero no registró entrada
                         }
                     }
 
-                    // 6. Guardar en la base de datos (Actualiza si ya existe, crea si es nuevo)
                     Asistencia asistencia = asistenciaRepository.findByUsuarioAndFecha(usuario, fecha)
                         .orElse(new Asistencia());
                     
@@ -453,11 +494,229 @@ public class AsistenciaService {
         );
     }
 
-    // Función auxiliar para evitar que los números de control se lean con decimales (ej. 12345.0)
     private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
         if (cell.getCellType() == CellType.STRING) return cell.getStringCellValue().trim();
         if (cell.getCellType() == CellType.NUMERIC) return String.valueOf((long) cell.getNumericCellValue());
         return "";
+    }
+
+    /* ====================================================================================
+     * CÁLCULO DE SANCIONES GLOBALES (RETARDOS, FALTAS Y OMISIONES)
+     * ==================================================================================== */
+    @Transactional(readOnly = true)
+    public List<ResumenSancionesRecord> calcularSanciones(LocalDate fechaInicio, LocalDate fechaFin, Optional<Integer> usuarioId, Optional<Integer> areaId) {
+        
+        // 1. Traemos TODAS las asistencias del periodo
+        Specification<Asistencia> spec = createAsistenciaSpecification(
+            Optional.of(fechaInicio), Optional.of(fechaFin),
+            usuarioId, areaId, Optional.empty(), Optional.empty()
+        );
+        List<Asistencia> todasLasAsistencias = asistenciaRepository.findAll(spec);
+
+        // 2. Filtramos: Solo nos importan las que son Incidencias (> 0) y NO están justificadas
+        List<Asistencia> incidenciasEfectivas = todasLasAsistencias.stream()
+            .filter(a -> a.getEstatusIncidencia() > ESTATUS_OK)
+            .filter(a -> a.getJustificacionAplicada() == null)
+            .collect(Collectors.toList());
+
+        // 3. Agrupamos todas las incidencias por Empleado
+        Map<Usuario, List<Asistencia>> incidenciasPorUsuario = incidenciasEfectivas.stream()
+            .collect(Collectors.groupingBy(Asistencia::getUsuario));
+
+        // 4. Procesamos a cada empleado para calcular sus días de castigo y extraer sus fechas
+        return incidenciasPorUsuario.entrySet().stream()
+            .map(entry -> {
+                Usuario u = entry.getKey();
+                List<Asistencia> asists = entry.getValue();
+
+                // Separar Retardos
+                List<Asistencia> retardos = asists.stream()
+                        .filter(a -> a.getEstatusIncidencia() == ESTATUS_RETARDO).toList();
+                long totalRetardos = retardos.size();
+                double descuentoRetardos = aplicarReglaDescuento(totalRetardos);
+                List<LocalDate> fechasRetardos = retardos.stream()
+                        .map(Asistencia::getFecha).sorted().toList();
+
+                // Separar Faltas y Omisiones (Valen 1 día entero cada una)
+                List<Asistencia> faltasYOmisiones = asists.stream()
+                        .filter(a -> a.getEstatusIncidencia() == ESTATUS_FALTA_TOTAL || 
+                                     a.getEstatusIncidencia() == ESTATUS_OMISION_ENTRADA || 
+                                     a.getEstatusIncidencia() == ESTATUS_OMISION_SALIDA).toList();
+                long totalFaltas = faltasYOmisiones.size();
+                double descuentoFaltas = totalFaltas * 1.0; // 1 Falta/Omisión = 1 día de descuento
+                List<LocalDate> fechasFaltas = faltasYOmisiones.stream()
+                        .map(Asistencia::getFecha).sorted().toList();
+
+                String nombreCompleto = u.getNombre() + " " + u.getApellidoPaterno() + 
+                                       (u.getApellidoMaterno() != null ? " " + u.getApellidoMaterno() : "");
+                
+                return new ResumenSancionesRecord(
+                    u.getNumeroControl(),
+                    nombreCompleto.trim(),
+                    u.getAreaPrincipal().getNombre(),
+                    totalRetardos,
+                    descuentoRetardos,
+                    fechasRetardos,
+                    totalFaltas,
+                    descuentoFaltas,
+                    fechasFaltas,
+                    descuentoRetardos + descuentoFaltas
+                );
+            })
+            // Ordenamos alfabéticamente por área y luego por nombre
+            .sorted(Comparator.comparing(ResumenSancionesRecord::area).thenComparing(ResumenSancionesRecord::nombreCompleto))
+            .collect(Collectors.toList());
+    }
+
+    private double aplicarReglaDescuento(long retardos) {
+        if (retardos < 4) return 0.0;
+        if (retardos == 4) return 0.5;
+        if (retardos >= 5 && retardos <= 8) return 1.0;
+        if (retardos == 9) return 1.5;
+        return 2.0; // 10 o más retardos
+    }
+
+    /* ====================================================================================
+     * AUTOMATIZACIÓN NOCTURNA: CÁLCULO DE FALTAS Y OMISIONES
+     * ==================================================================================== */
+
+    /** Número de usuarios procesados por lote en el job nocturno. */
+    private static final int BATCH_SIZE_NOCTURNO = 100;
+
+    /**
+     * Job programado que se ejecuta a las 23:50:00 para cerrar las incidencias del día.
+     *
+     * <p>Procesa los usuarios en lotes de {@value #BATCH_SIZE_NOCTURNO} para evitar
+     * cargar toda la tabla en memoria de una vez. Por cada usuario con horario activo:
+     * <ul>
+     *   <li>Si no registró nada → crea una Falta Total.</li>
+     *   <li>Si registró entrada pero no salida → marca Omisión de Salida.</li>
+     *   <li>Si registró salida pero no entrada → marca Omisión de Entrada.</li>
+     * </ul>
+     */
+    @Scheduled(cron = "0 50 23 * * ?")
+    public void procesarIncidenciasNocturnas() {
+        LocalDate hoy = LocalDate.now();
+        int pageNumber = 0;
+        int totalProcesados = 0;
+
+        log.info("Iniciando cierre de incidencias nocturno para la fecha: {}", hoy);
+
+        org.springframework.data.domain.Page<Usuario> pagina;
+        do {
+            org.springframework.data.domain.Pageable pageRequest =
+                    org.springframework.data.domain.PageRequest.of(pageNumber, BATCH_SIZE_NOCTURNO);
+            pagina = usuarioRepository.findAll(pageRequest);
+
+            // Procesar cada lote en su propia transacción para limitar el tamaño del contexto JPA
+            procesarLote(pagina.getContent(), hoy);
+            totalProcesados += pagina.getNumberOfElements();
+            pageNumber++;
+
+        } while (pagina.hasNext());
+
+        log.info("Cierre nocturno completado: {} usuarios procesados para la fecha {}", totalProcesados, hoy);
+    }
+
+    /**
+     * Procesa un lote de usuarios evaluando sus incidencias del día dado.
+     * Se ejecuta en una transacción propia para que cada lote se confirme de
+     * forma independiente y no se mantenga un contexto JPA enorme en memoria.
+     *
+     * @param usuarios Lista de usuarios del lote actual.
+     * @param fecha    Fecha a procesar (normalmente el día actual).
+     */
+    @Transactional
+    protected void procesarLote(List<Usuario> usuarios, LocalDate fecha) {
+        for (Usuario usuario : usuarios) {
+            HorarioDetalle turnoHoy = calcularTurnoParaFecha(usuario, fecha);
+            if (turnoHoy == null) continue;
+
+            Optional<Asistencia> registroOpt = asistenciaRepository.findByUsuarioAndFecha(usuario, fecha);
+
+            if (registroOpt.isEmpty()) {
+                Asistencia nuevaFalta = new Asistencia();
+                nuevaFalta.setUsuario(usuario);
+                nuevaFalta.setFecha(fecha);
+                nuevaFalta.setEstatusIncidencia(ESTATUS_FALTA_TOTAL);
+                asistenciaRepository.save(nuevaFalta);
+            } else {
+                Asistencia registro = registroOpt.get();
+                if (registro.getHoraEntrada() != null && registro.getHoraSalida() == null) {
+                    registro.setEstatusIncidencia(ESTATUS_OMISION_SALIDA);
+                    asistenciaRepository.save(registro);
+                } else if (registro.getHoraEntrada() == null && registro.getHoraSalida() != null) {
+                    registro.setEstatusIncidencia(ESTATUS_OMISION_ENTRADA);
+                    asistenciaRepository.save(registro);
+                }
+            }
+        }
+    }
+
+    /* ====================================================================================
+     * APLICACIÓN DE JUSTIFICACIONES (MANTIENE EL ESTATUS ORIGINAL INTACTO)
+     * ==================================================================================== */
+    @Transactional
+    public void justificarAsistencia(Long asistenciaId, Integer justificacionId, String observacion, String usuarioRegistro) {
+        // 1. Buscamos el registro de asistencia
+        Asistencia asistencia = asistenciaRepository.findById(asistenciaId)
+            .orElseThrow(() -> new RuntimeException("Registro de asistencia no encontrado"));
+
+        // 2. Validamos que no tenga una justificación previa
+        if (asistencia.getJustificacionAplicada() != null) {
+            throw new IllegalStateException("Este registro ya tiene una justificación aplicada.");
+        }
+
+        // 3. Buscamos el motivo en el catálogo
+        CatalogoJustificacion justificacion = catalogoJustificacionRepository.findById(justificacionId)
+            .orElseThrow(() -> new RuntimeException("El motivo de justificación seleccionado no existe."));
+
+        // 4. Validamos la regla del catálogo: Si exige observación, no puede ir vacía
+        if (justificacion.getRequiereObservacion() && (observacion == null || observacion.trim().isEmpty())) {
+            throw new IllegalArgumentException("Este motivo de justificación requiere una observación obligatoria.");
+        }
+
+        // 5. Creamos el puente (sin tocar el estatusIncidencia de la tabla original)
+        AsistenciaJustificacion nuevaJustificacion = new AsistenciaJustificacion();
+        nuevaJustificacion.setAsistencia(asistencia);
+        nuevaJustificacion.setJustificacion(justificacion);
+        nuevaJustificacion.setObservacion(observacion);
+        nuevaJustificacion.setUsuarioRegistro(usuarioRegistro); // El "admin001" que autoriza
+
+        asistenciaJustificacionRepository.save(nuevaJustificacion);
+    }
+
+    /* ====================================================================================
+     * PORTAL DEL EMPLEADO (VISTAS Y ACCIONES PROPIAS)
+     * ==================================================================================== */
+
+    /**
+     * Retorna el historial paginado de asistencias del empleado identificado por
+     * {@code numeroControl}, sin restricción de fechas.
+     */
+   @Transactional(readOnly = true)
+    public Page<AsistenciaReporteRecord> getMisAsistencias(String numeroControl, Pageable pageable) {
+        Usuario usuario = usuarioRepository.findByNumeroControl(numeroControl)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        Specification<Asistencia> spec = (root, query, cb) ->
+            cb.equal(root.get("usuario").get("id"), usuario.getId());
+
+        return asistenciaRepository.findAll(spec, pageable).map(this::toReporteRecord);
+    }
+
+    @Transactional
+    public void justificarMiAsistencia(Long asistenciaId, Integer justificacionId, String observacion, String numeroControl) {
+        Asistencia asistencia = asistenciaRepository.findById(asistenciaId)
+            .orElseThrow(() -> new RuntimeException("Registro de asistencia no encontrado"));
+
+        // Previene que un usuario justifique incidencias ajenas usando su propio token.
+        if (!asistencia.getUsuario().getNumeroControl().equals(numeroControl)) {
+            throw new SecurityException("No tienes permiso para justificar una asistencia que no es tuya.");
+        }
+
+        // Si pasa el filtro de seguridad, reutilizamos la lógica central que ya programaste
+        justificarAsistencia(asistenciaId, justificacionId, observacion, numeroControl);
     }
 }

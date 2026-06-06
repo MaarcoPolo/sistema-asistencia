@@ -28,7 +28,11 @@ import VisibilityIcon from '@mui/icons-material/Visibility'
 import AsistenciaViewModal from '../components/AsistenciaViewModal'
 import ReporteModal from '../components/ReporteModal'
 import AssessmentIcon from '@mui/icons-material/Assessment'
-import UploadFileIcon from '@mui/icons-material/UploadFile' // Añade este ícono
+import UploadFileIcon from '@mui/icons-material/UploadFile'
+import AccessTimeIcon from '@mui/icons-material/AccessTime'
+import ResumenSancionesModal from '../components/ResumenSancionesModal'
+import JustificarModal from '../components/JustificarModal'
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser'
 
 function AdminDashboard() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -42,6 +46,9 @@ function AdminDashboard() {
   const { showNotification } = useNotification()
   const [tableKey, setTableKey] = useState(0)
   const [filters, setFilters] = useState({ fechaInicio: '', fechaFin: '' })
+  const [justificarModalOpen, setJustificarModalOpen] = useState(false)
+  const [recordToJustify, setRecordToJustify] = useState(null)
+  const [sancionesOpen, setSancionesOpen] = useState(false)
 
   const columns = [
     {
@@ -84,6 +91,24 @@ function AdminDashboard() {
           default:
             return <Chip label="Desconocido" size="small" />
         }
+      },
+    },
+    {
+      id: 'justificacion',
+      label: 'Justificación',
+      render: (row) => {
+        return row.motivoJustificacion ? (
+          <Chip
+            label={row.motivoJustificacion}
+            color="primary"
+            variant="outlined"
+            size="small"
+          />
+        ) : (
+          <Typography variant="body2" color="textSecondary">
+            ---
+          </Typography>
+        )
       },
     },
   ]
@@ -196,6 +221,10 @@ function AdminDashboard() {
       showNotification(errorMessage, 'error')
     }
   }
+  const handleOpenJustificar = (record) => {
+    setRecordToJustify(record)
+    setJustificarModalOpen(true)
+  }
 
   return (
     <Box>
@@ -256,6 +285,16 @@ function AdminDashboard() {
               />
             </Button>
           </Tooltip>
+          <Tooltip title="Calcular Sanciones y Descuentos">
+            <Button
+              variant="outlined"
+              color="error" // Lo puse rojo para que resalte que son sanciones
+              startIcon={<AccessTimeIcon />}
+              onClick={() => setSancionesOpen(true)}
+              sx={{ mr: 2 }}>
+              Cálculo Sanciones
+            </Button>
+          </Tooltip>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -293,12 +332,21 @@ function AdminDashboard() {
               onClick={() => handleOpenViewModal(row)}>
               <VisibilityIcon />
             </IconButton>
-            <IconButton color="primary" onClick={() => handleOpenModal(row)}>
+            {row.estatusIncidencia !== 0 && !row.motivoJustificacion && (
+              <Tooltip title="Justificar">
+                <IconButton
+                  color="success"
+                  onClick={() => handleOpenJustificar(row)}>
+                  <VerifiedUserIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {/* <IconButton color="primary" onClick={() => handleOpenModal(row)}>
               <EditIcon />
             </IconButton>
             <IconButton color="error" onClick={() => handleDeleteClick(row)}>
               <DeleteIcon />
-            </IconButton>
+            </IconButton> */}
           </>
         )}
       />
@@ -325,6 +373,16 @@ function AdminDashboard() {
         open={reporteModalOpen}
         onClose={() => setReporteModalOpen(false)}
         onGenerate={handleGenerarReporte}
+      />
+      <JustificarModal
+        open={justificarModalOpen}
+        onClose={() => setJustificarModalOpen(false)}
+        record={recordToJustify}
+        onSuccess={() => setTableKey((prev) => prev + 1)} // Recarga la tabla mágicamente
+      />
+      <ResumenSancionesModal
+        open={sancionesOpen}
+        onClose={() => setSancionesOpen(false)}
       />
     </Box>
   )

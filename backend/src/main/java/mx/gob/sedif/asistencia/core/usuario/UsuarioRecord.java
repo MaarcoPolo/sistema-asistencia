@@ -20,5 +20,10 @@ public record UsuarioRecord(
     String nombreCompleto,
     String rolEtiqueta,
     String estatusEtiqueta,
-    String nombreAreaPrincipal
+    String nombreAreaPrincipal,
+    
+    Integer idHorarioAsignado,
+    String nombreHorarioAsignado,
+
+    Boolean requiereCambioPassword
 ) implements Serializable {}

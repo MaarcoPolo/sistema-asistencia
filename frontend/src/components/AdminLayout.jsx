@@ -1,29 +1,14 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import {
-  AppBar,
-  Box,
-  CssBaseline,
-  Drawer,
-  Button,
-  IconButton,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Toolbar,
-  Typography,
-} from '@mui/material'
-
+import { AppBar, Box, CssBaseline, Drawer, Button, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography } from '@mui/material'
 import MenuIcon from '@mui/icons-material/Menu'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import PeopleIcon from '@mui/icons-material/People'
 import LogoutIcon from '@mui/icons-material/Logout'
 import ApartmentIcon from '@mui/icons-material/Apartment'
 import ScheduleIcon from '@mui/icons-material/Schedule'
-
+import FactCheckIcon from '@mui/icons-material/FactCheck'
 import Footer from './Footer'
 
 const drawerWidth = 240
@@ -47,6 +32,7 @@ function AdminLayout({ children }) {
     { text: 'Usuarios', icon: <PeopleIcon />, path: '/admin/usuarios' },
     { text: 'Áreas', icon: <ApartmentIcon />, path: '/admin/areas' },
     { text: 'Horarios', icon: <ScheduleIcon />, path: '/admin/horarios' },
+    { text: 'Justificaciones', icon: <FactCheckIcon />, path: '/admin/justificaciones' },
   ]
 
   const drawerContent = (

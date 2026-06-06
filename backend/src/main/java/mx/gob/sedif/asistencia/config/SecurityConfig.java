@@ -34,17 +34,26 @@ public class SecurityConfig {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
+    /**
+     * Configura la cadena de filtros de seguridad HTTP.
+     *
+     * <ul>
+     *   <li>CORS delegado a WebConfig (permite origen del frontend).</li>
+     *   <li>CSRF deshabilitado porque se usa JWT stateless.</li>
+     *   <li>Los endpoints de autenticación son públicos; el resto requiere JWT válido.</li>
+     * </ul>
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/api/auth/**").permitAll() // Endpoints de autenticación son públicos
-                    .anyRequest().authenticated()               // Todo lo demás requiere autenticación
+                    // Todos los flujos de auth (login, identificar, refresh, logout) son públicos
+                    .requestMatchers("/api/auth/**").permitAll()
+                    .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // no uso el filtro de login por defecto
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

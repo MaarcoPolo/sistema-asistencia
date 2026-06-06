@@ -1,13 +1,22 @@
 .vscode
-# Base de datos local
-pgdata/
 
-# Frontend
+# ── Base de datos local ────────────────────────────────────────────────────────
+pgdata/
+# Los respaldos SQL pueden contener datos sensibles de empleados.
+# Nunca commitear archivos .sql de respaldo.
+*.sql
+!backend/src/main/resources/db/migration/*.sql
+
+# ── Credenciales ───────────────────────────────────────────────────────────────
+.env
+*.env.local
+
+# ── Frontend ───────────────────────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local
 
-# Backend
+# ── Backend ────────────────────────────────────────────────────────────────────
 backend/target/
 backend/.mvn/
 backend/*.log

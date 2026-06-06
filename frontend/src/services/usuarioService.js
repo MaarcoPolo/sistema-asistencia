@@ -19,3 +19,18 @@ export const updateUsuario = (id, usuarioData) => {
 export const deleteUsuario = (id) => {
   return apiClient.delete(`/core/usuario/${id}`)
 }
+
+export const getMiPerfil = async () => {
+  const response = await apiClient.get('/core/usuario/mi-perfil')
+  return response.data.data
+}
+
+export const resetPasswordUsuario = async (id) => {
+  const response = await apiClient.post(`/core/usuario/${id}/reset-password`)
+  return response.data
+}
+
+export const cambiarMiContrasena = async (nuevaContrasena) => {
+  const response = await apiClient.post(`/core/usuario/mi-contrasena`, { nuevaContrasena })
+  return response.data
+}

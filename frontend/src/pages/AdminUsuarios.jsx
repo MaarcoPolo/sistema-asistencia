@@ -1,18 +1,14 @@
 import { useState } from 'react'
-import {
-  createUsuario,
-  updateUsuario,
-  deleteUsuario,
-  getUsuarios,
-} from '../services/usuarioService'
+import { createUsuario, updateUsuario, deleteUsuario, getUsuarios, resetPasswordUsuario } from '../services/usuarioService'
 import UsuarioForm from '../components/UsuarioForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
 import DynamicTable from '../components/DynamicTable'
-import { Box, Button, Typography, IconButton } from '@mui/material'
+import { Box, Button, Typography, IconButton, Tooltip } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import VpnKeyIcon from '@mui/icons-material/VpnKey'
 
 function AdminUsuarios() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -106,6 +102,26 @@ function AdminUsuarios() {
     }
   }
 
+  const handleResetPassword = (user) => {
+    setConfirmAction(() => () => executeResetPassword(user.id))
+    setConfirmData({
+      title: 'Restablecer Contraseña',
+      message: `¿Seguro que deseas restablecer la contraseña de ${user.nombreCompleto}? Volverá a ser su Número de Control + "-DIF".`,
+    })
+    setConfirmOpen(true)
+  }
+
+  const executeResetPassword = async (id) => {
+    try {
+      await resetPasswordUsuario(id)
+      showNotification('Contraseña restablecida con éxito', 'success')
+    } catch (error) {
+      showNotification(error.response?.data?.message || 'Error al restablecer contraseña', 'error')
+    } finally {
+      setConfirmOpen(false)
+    }
+  }
+
   return (
     <Box>
       <Box
@@ -139,6 +155,11 @@ function AdminUsuarios() {
             <IconButton color="error" onClick={() => handleDeleteClick(user)}>
               <DeleteIcon />
             </IconButton>
+            <Tooltip title="Restablecer Contraseña">
+              <IconButton color="warning" onClick={() => handleResetPassword(user)}>
+                <VpnKeyIcon />
+              </IconButton>
+            </Tooltip>
           </>
         )}
       />

@@ -14,6 +14,7 @@ import {
   Chip,
 } from '@mui/material'
 import { getAreasForSelect } from '../services/areaService'
+import { getHorarios } from '../services/horarioService'
 import { useAuth } from '../context/AuthContext.jsx'
 
 const allRoles = [
@@ -29,12 +30,21 @@ const estados = [
 function UsuarioForm({ open, onClose, onSubmit, initialData }) {
   const [formData, setFormData] = useState({})
   const [areas, setAreas] = useState([])
+  const [horarios, setHorarios] = useState([])
   const { authData } = useAuth()
   const user = authData?.user
 
   useEffect(() => {
+    // Cargar áreas
     getAreasForSelect().then((response) => {
       setAreas(response.data)
+    })
+
+    // Cargar horarios para el Autocomplete (pedimos un tamaño grande para traer todos)
+    getHorarios({ size: 1000, sort: 'nombre,asc' }).then((response) => {
+      // Dependiendo de cómo responda tu backend, tomamos el content paginado o el array directo
+      const data = response.data?.content || response.data || []
+      setHorarios(data)
     })
   }, [])
 
@@ -201,6 +211,33 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
               sx={{ mt: 2 }}
             />
           )}
+
+          {/* --- NUEVO AUTOCOMPLETE PARA HORARIOS --- */}
+          <Autocomplete
+            options={horarios}
+            getOptionLabel={(option) => option.nombre || ''}
+            value={
+              horarios.find((h) => h.id === formData.idHorarioAsignado) || null
+            }
+            onChange={(event, newValue) => {
+              setFormData((prev) => ({
+                ...prev,
+                idHorarioAsignado: newValue ? newValue.id : null,
+                nombreHorarioAsignado: newValue ? newValue.nombre : null,
+              }))
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Horario Asignado"
+                variant="outlined"
+                margin="normal"
+                fullWidth
+                placeholder="Seleccione un horario"
+              />
+            )}
+            sx={{ mt: 1 }}
+          />
 
           <FormControl fullWidth margin="normal">
             <InputLabel>Estatus</InputLabel>

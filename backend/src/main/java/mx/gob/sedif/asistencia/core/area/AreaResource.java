@@ -1,52 +1,106 @@
 package mx.gob.sedif.asistencia.core.area;
 
 import lombok.RequiredArgsConstructor;
+import mx.gob.sedif.asistencia.exception.ApiResponse;
+import mx.gob.sedif.asistencia.exception.MessageConstants;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
+/**
+ * Controller REST para la gestión de áreas organizacionales.
+ *
+ * <p>Códigos HTTP:
+ * <ul>
+ *   <li>GET    → 200 OK</li>
+ *   <li>POST   → 201 Created</li>
+ *   <li>PUT    → 200 OK</li>
+ *   <li>DELETE → 204 No Content</li>
+ * </ul>
+ */
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/core/area")
+@PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
 public class AreaResource {
+
     private final AreaService areaService;
 
+    /**
+     * Lista paginada de áreas filtradas por nombre.
+     * HTTP 200.
+     */
     @GetMapping
-    public Page<AreaRecord> getAll(
+    public ResponseEntity<ApiResponse<Page<AreaRecord>>> getAll(
             @RequestParam(required = false, defaultValue = "") String key,
             @PageableDefault(size = 25, sort = "id", direction = Sort.Direction.ASC) Pageable pageable
     ) {
-        return areaService.getAll(key, pageable);
+        return ResponseEntity.ok(
+                ApiResponse.ok(MessageConstants.AREAS_OBTENIDAS, areaService.getAll(key, pageable)));
     }
 
+    /**
+     * Retorna un área por ID.
+     * HTTP 200.
+     */
     @GetMapping("/{id}")
-    public AreaRecord findById(@PathVariable Integer id) {
-        return areaService.findById(id);
+    public ResponseEntity<ApiResponse<AreaRecord>> findById(@PathVariable Integer id) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(MessageConstants.AREA_OBTENIDA, areaService.findById(id)));
     }
 
+    /**
+     * Lista completa de áreas para los select/dropdown del frontend.
+     * HTTP 200.
+     */
+    @GetMapping("/select-list")
+    public ResponseEntity<ApiResponse<List<AreaRecord>>> findAllForSelect() {
+        return ResponseEntity.ok(
+                ApiResponse.ok(MessageConstants.AREAS_OBTENIDAS, areaService.findAllForSelect()));
+    }
+
+    /**
+     * Crea un nuevo área organizacional.
+     * HTTP 201 Created.
+     */
     @PostMapping
-    public AreaRecord create(@RequestBody AreaRecord area) {
-        return areaService.create(area);
+    public ResponseEntity<ApiResponse<AreaRecord>> create(@RequestBody AreaRecord area) {
+        AreaRecord creada = areaService.create(area);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(MessageConstants.AREA_CREADA, creada));
     }
 
+    /**
+     * Actualiza los datos de un área existente.
+     * HTTP 200.
+     */
     @PutMapping("/{id}")
-    public AreaRecord save(@PathVariable Integer id, @RequestBody AreaRecord area) {
+    public ResponseEntity<ApiResponse<AreaRecord>> save(
+            @PathVariable Integer id,
+            @RequestBody AreaRecord area
+    ) {
         if (!id.equals(area.id())) {
             throw new IllegalArgumentException("El ID en el path no coincide con el ID en el cuerpo de la petición.");
         }
-        return areaService.save(area);
+        AreaRecord actualizada = areaService.save(area);
+        return ResponseEntity.ok(ApiResponse.ok(MessageConstants.AREA_ACTUALIZADA, actualizada));
     }
 
+    /**
+     * Elimina un área organizacional.
+     * HTTP 204 No Content.
+     */
     @DeleteMapping("/{id}")
-    public void deleteById(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<Void>> deleteById(@PathVariable Integer id) {
         areaService.deleteById(id);
-    }
-
-    @GetMapping("/select-list")
-    public List<AreaRecord> findAllForSelect() {
-        return areaService.findAllForSelect();
+        return ResponseEntity.status(HttpStatus.NO_CONTENT)
+                .body(ApiResponse.noContent(MessageConstants.AREA_ELIMINADA));
     }
 }

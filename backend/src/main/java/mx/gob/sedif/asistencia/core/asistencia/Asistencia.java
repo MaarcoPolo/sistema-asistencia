@@ -3,6 +3,7 @@ package mx.gob.sedif.asistencia.core.asistencia;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import mx.gob.sedif.asistencia.core.justificacion.AsistenciaJustificacion;
 import mx.gob.sedif.asistencia.core.usuario.Usuario;
 
 import java.time.LocalDate;
@@ -46,4 +47,7 @@ public class Asistencia {
     // 0=OK, 1=Retardo, 2=Falta Total, 3=Omisión Entrada, 4=Omisión Salida
     @Column(name = "n_estatus_incidencia", nullable = false)
     private Integer estatusIncidencia = 0;
+
+    @OneToOne(mappedBy = "asistencia", fetch = FetchType.LAZY)
+    private AsistenciaJustificacion justificacionAplicada;
 }

@@ -32,7 +32,7 @@ export const registrarSalida = async (fotoBase64) => {
 }
 export const getEstadoAsistenciaDiario = async () => {
   const response = await apiClient.get('/asistencia/estado-diario')
-  return response.data
+  return response.data.data
 }
 // Función para exportar a EXCEL
 export const exportarAsistenciasExcel = async (params) => {
@@ -107,5 +107,78 @@ export const subirExcelMasivo = async (file) => {
       'Content-Type': 'multipart/form-data',
     },
   })
+  return response.data.data
+}
+
+export const getResumenRetardos = async (fechaInicio, fechaFin) => {
+  const response = await apiClient.get('/asistencia/resumen-retardos', {
+    params: { fechaInicio, fechaFin },
+  })
+  return response.data
+}
+
+export const justificarAsistencia = async (id, data) => {
+  const response = await apiClient.post(`/asistencia/${id}/justificar`, data)
+  return response.data
+}
+
+// Agrega esto al final de asistenciaService.js
+
+export const getResumenSanciones = async (params) => {
+  const response = await apiClient.get('/asistencia/resumen-sanciones', {
+    params,
+  })
+  return response.data.data
+}
+
+export const exportarSancionesPdf = async (params) => {
+  const response = await apiClient.get('/asistencia/exportar/sanciones/pdf', {
+    params,
+    responseType: 'blob', // Importantísimo para recibir archivos
+  })
+
+  // Lógica para forzar la descarga del archivo en el navegador
+  const url = window.URL.createObjectURL(
+    new Blob([response.data], { type: 'application/pdf' }),
+  )
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute(
+    'download',
+    `Reporte_Sanciones_${params.fechaInicio || 'General'}.pdf`,
+  )
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+export const exportarSancionesExcel = async (params) => {
+  const response = await apiClient.get('/asistencia/exportar/sanciones/excel', {
+    params,
+    responseType: 'blob',
+  })
+
+  const url = window.URL.createObjectURL(
+    new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+  )
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute(
+    'download',
+    `Sanciones_Nómina_${params.fechaInicio || 'General'}.xlsx`,
+  )
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+export const getMisAsistencias = (params) => {
+  return apiClient.get('/asistencia/mis-asistencias', { params })
+}
+
+export const justificarMiAsistencia = async (id, data) => {
+  const response = await apiClient.post(`/asistencia/${id}/mi-justificacion`, data)
   return response.data
 }

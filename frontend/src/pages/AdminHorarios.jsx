@@ -9,10 +9,21 @@ import HorarioForm from '../components/HorarioForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
 import DynamicTable from '../components/DynamicTable'
-import { Box, Button, Typography, IconButton } from '@mui/material'
+import { Box, Button, Typography, IconButton, Chip, Stack } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+
+// Diccionario para convertir el número del día a texto corto
+const mapaDias = {
+  1: 'Lun',
+  2: 'Mar',
+  3: 'Mié',
+  4: 'Jue',
+  5: 'Vie',
+  6: 'Sáb',
+  7: 'Dom',
+}
 
 function AdminHorarios() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -23,18 +34,62 @@ function AdminHorarios() {
   const [tableKey, setTableKey] = useState(0)
   const { showNotification } = useNotification()
 
+  // Definición de las columnas de la tabla
   const columns = [
     { id: 'nombre', label: 'Nombre del Horario' },
-    { id: 'horaEntrada', label: 'Entrada' },
-    { id: 'horaSalida', label: 'Salida' },
     {
-      id: 'aplicaA',
-      label: 'Aplica a',
+      id: 'horaEntrada',
+      label: 'Entrada',
       sortable: false,
       render: (row) => {
-        if (row.nombreUsuario) return `Usuario: ${row.nombreUsuario}`
-        if (row.nombreArea) return `Área: ${row.nombreArea}`
-        return 'Global'
+        // Tomamos la hora del primer día configurado
+        const primerDetalle =
+          row.detalles && row.detalles.length > 0 ? row.detalles[0] : null
+        return primerDetalle && primerDetalle.horaEntrada
+          ? primerDetalle.horaEntrada.substring(0, 5)
+          : '---'
+      },
+    },
+    {
+      id: 'horaSalida',
+      label: 'Salida',
+      sortable: false,
+      render: (row) => {
+        const primerDetalle =
+          row.detalles && row.detalles.length > 0 ? row.detalles[0] : null
+        return primerDetalle && primerDetalle.horaSalida
+          ? primerDetalle.horaSalida.substring(0, 5)
+          : '---'
+      },
+    },
+    {
+      id: 'diasAsignados',
+      label: 'Días Asignados',
+      sortable: false,
+      render: (row) => {
+        if (!row.detalles || row.detalles.length === 0)
+          return (
+            <Typography variant="body2" color="error">
+              Sin días
+            </Typography>
+          )
+
+        // Ordenamos los días del 1 al 7 para que no salgan revueltos
+        const diasOrdenados = [...row.detalles].sort((a, b) => a.dia - b.dia)
+
+        return (
+          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+            {diasOrdenados.map((detalle) => (
+              <Chip
+                key={detalle.id || detalle.dia}
+                label={mapaDias[detalle.dia]}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            ))}
+          </Stack>
+        )
       },
     },
   ]
