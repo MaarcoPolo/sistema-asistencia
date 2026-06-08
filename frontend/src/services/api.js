@@ -13,6 +13,17 @@ const apiClient = axios.create({
   withCredentials: true,
 })
 
+apiClient.interceptors.response.use(
+  (response) => {
+    // Si la respuesta es un ApiResponse (trae .data), devolvemos el contenido real.
+    // Si no, devolvemos la respuesta tal cual (ej. para archivos blob).
+    if (response.data && response.data.hasOwnProperty('data')) {
+      return { ...response, data: response.data.data }
+    }
+    return response
+  },
+  (error) => Promise.reject(error)
+)
 /**
  * Función de logout registrada desde AuthContext.
  * Se usa dentro del interceptor de respuesta para forzar el cierre de sesión

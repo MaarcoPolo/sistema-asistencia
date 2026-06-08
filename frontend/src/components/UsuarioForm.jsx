@@ -35,19 +35,29 @@ function UsuarioForm({ open, onClose, onSubmit, initialData }) {
   const user = authData?.user
 
   useEffect(() => {
-    // Cargar áreas
+    // Cargar áreas (Entendiendo que Java devuelve un ApiResponse { message, data })
     getAreasForSelect().then((response) => {
-      setAreas(response.data)
+      // Extraemos la propiedad 'data' del ApiResponse de Java
+      const listaAreas = response.data?.data || response.data || []
+      setAreas(Array.isArray(listaAreas) ? listaAreas : [])
+    }).catch(error => {
+      console.error("Error al cargar áreas:", error)
+      setAreas([])
     })
 
-    // Cargar horarios para el Autocomplete (pedimos un tamaño grande para traer todos)
+    // Cargar horarios 
     getHorarios({ size: 1000, sort: 'nombre,asc' }).then((response) => {
-      // Dependiendo de cómo responda tu backend, tomamos el content paginado o el array directo
-      const data = response.data?.content || response.data || []
-      setHorarios(data)
+      // Dependiendo de si HorarioResource usa ApiResponse y/o Paginación:
+      const pageData = response.data?.data || response.data || {}
+      const listaHorarios = pageData.content || pageData || []
+      
+      setHorarios(Array.isArray(listaHorarios) ? listaHorarios : [])
+    }).catch(error => {
+      console.error("Error al cargar horarios:", error)
+      setHorarios([])
     })
   }, [])
-
+  
   useEffect(() => {
     if (initialData) {
       setFormData({

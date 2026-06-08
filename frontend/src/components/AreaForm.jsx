@@ -24,17 +24,25 @@ function AreaForm({ open, onClose, onSubmit, initialData }) {
   const [areas, setAreas] = useState([])
 
   useEffect(() => {
-    if (open) {
-      // Cargar áreas solo cuando el modal se abre
-      getAreasForSelect().then((response) => {
-        // Filtramos para que un área no pueda ser su propia área padre
-        const filteredAreas = initialData
-          ? response.data.filter((area) => area.id !== initialData.id)
-          : response.data
-        setAreas(filteredAreas)
-      })
-    }
-  }, [initialData, open])
+      if (open) {
+        // Cargar áreas solo cuando el modal se abre
+        getAreasForSelect().then((response) => {
+          // Extraemos la lista real del ApiResponse de Java
+          const listaAreas = response.data?.data || response.data || []
+          const areasArray = Array.isArray(listaAreas) ? listaAreas : []
+
+          // Filtramos para que un área no pueda ser su propia área padre
+          const filteredAreas = initialData
+            ? areasArray.filter((area) => area.id !== initialData.id)
+            : areasArray
+            
+          setAreas(filteredAreas)
+        }).catch((error) => {
+          console.error("Error al cargar áreas:", error)
+          setAreas([])
+        })
+      }
+    }, [initialData, open])
 
   useEffect(() => {
     setFormData(initialData || { estatus: 'ACTIVE' })
