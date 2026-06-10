@@ -21,6 +21,7 @@ function DynamicTable({
   fetchDataFunction,
   renderActions,
   initialSort,
+  extraFilters = {},
 }) {
   const [data, setData] = useState([])
   const [totalElements, setTotalElements] = useState(0)
@@ -35,6 +36,7 @@ function DynamicTable({
 
   const [searchTerm, setSearchTerm] = useState('') // Lo que el usuario escribe
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('') // Lo que se envía
+  const extraFiltersStr = JSON.stringify(extraFilters)
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -59,9 +61,18 @@ function DynamicTable({
         size: rowsPerPage,
         sort: `${sortField},${sort.direction}`,
         key: debouncedSearchTerm,
+        ...JSON.parse(extraFiltersStr)
       }
 
       if (!params.key) delete params.key
+
+      // Quitar filtros extra vacíos (string vacío, null o undefined)
+      // para no ensuciar la query con parámetros sin valor.
+      Object.keys(params).forEach((k) => {
+        if (params[k] === '' || params[k] === null || params[k] === undefined) {
+          delete params[k]
+        }
+      })
 
       const response = await fetchDataFunction(params)
       const pageData = response.data?.data ?? response.data
@@ -74,11 +85,17 @@ function DynamicTable({
     } finally {
       setLoading(false)
     }
-  }, [page, rowsPerPage, sort, debouncedSearchTerm, fetchDataFunction, columns])
+  }, [page, rowsPerPage, sort, debouncedSearchTerm, extraFiltersStr, fetchDataFunction, columns])
 
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Al cambiar los filtros externos (No. Control, Área), regresar a la
+  // primera página para no quedar en una página inexistente del nuevo resultado.
+  useEffect(() => {
+    setPage(0)
+  }, [extraFiltersStr])
 
   const handleSort = (field) => {
     const isAsc = sort.field === field && sort.direction === 'asc'

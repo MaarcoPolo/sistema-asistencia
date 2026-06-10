@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createUsuario, updateUsuario, deleteUsuario, getUsuarios, resetPasswordUsuario } from '../services/usuarioService'
 import UsuarioForm from '../components/UsuarioForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
 import DynamicTable from '../components/DynamicTable'
-import { Box, Button, Typography, IconButton, Tooltip } from '@mui/material'
+import { Box, Button, Typography, IconButton, Tooltip, TextField, Autocomplete, Grid, Paper } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import { getAreasForSelect } from '../services/areaService'
 
 function AdminUsuarios() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -18,6 +19,19 @@ function AdminUsuarios() {
   const [confirmData, setConfirmData] = useState(null)
   const [tableKey, setTableKey] = useState(0)
   const { showNotification } = useNotification()
+  const [areas, setAreas] = useState([])
+  // `filtros` es lo que escribe el usuario; `filtrosAplicados` es lo que
+  // realmente se envía a la tabla (con debounce sobre el número de control
+  // para no disparar una petición por cada tecla).
+  const [filtros, setFiltros] = useState({ numeroControl: '', areaId: '' })
+  const [filtrosAplicados, setFiltrosAplicados] = useState({ numeroControl: '', areaId: '' })
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setFiltrosAplicados(filtros)
+    }, 500)
+    return () => clearTimeout(timerId)
+  }, [filtros])
 
   const columns = [
     { id: 'numeroControl', label: 'No. Control' },
@@ -30,6 +44,13 @@ function AdminUsuarios() {
     },
     { id: 'estatus', label: 'Estatus' },
   ]
+
+  useEffect(() => {
+    getAreasForSelect().then(res => {
+      const data = res.data?.data || res.data || []
+      setAreas(Array.isArray(data) ? data : [])
+    })
+  }, [])
 
   const handleOpenModal = (user = null) => {
     setEditingUser(user)
@@ -122,6 +143,10 @@ function AdminUsuarios() {
     }
   }
 
+  const handleFiltroChange = (campo, valor) => {
+    setFiltros(prev => ({ ...prev, [campo]: valor }))
+  }
+
   return (
     <Box>
       <Box
@@ -141,11 +166,30 @@ function AdminUsuarios() {
           Crear Usuario
         </Button>
       </Box>
-
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <TextField
+          size="small"
+          label="Filtrar por No. Control"
+          value={filtros.numeroControl}
+          onChange={(e) => handleFiltroChange('numeroControl', e.target.value)}
+          sx={{ width: { xs: '100%', sm: '250px' } }}
+        />
+        <Autocomplete
+          size="small"
+          options={areas}
+          getOptionLabel={(option) => option.nombre}
+          onChange={(e, newValue) => handleFiltroChange('areaId', newValue ? newValue.id : null)}
+          sx={{ width: { xs: '100%', sm: '400px' } }}
+          renderInput={(params) => (
+            <TextField {...params} label="Filtrar por Departamento / Área" />
+          )}
+        />
+      </Box>
       <DynamicTable
         key={tableKey}
         columns={columns}
         fetchDataFunction={getUsuarios}
+        extraFilters={filtrosAplicados}
         initialSort={{ field: 'numeroControl', direction: 'asc' }}
         renderActions={(user) => (
           <>

@@ -29,22 +29,39 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
      * Lista paginada de todos los usuarios filtrados por nombre completo.
      * El {@code JOIN FETCH areaPrincipal} evita una query adicional por fila.
      */
-    @Query("SELECT u FROM Usuario u JOIN FETCH u.areaPrincipal " +
-           "WHERE lower(concat(u.nombre, ' ', u.apellidoPaterno, ' ', " +
-           "coalesce(u.apellidoMaterno,''))) LIKE lower(concat('%', :nombre, '%'))")
-    Page<Usuario> findByNombreCompletoContaining(@Param("nombre") String nombre, Pageable pageable);
+   @Query(value = "SELECT u FROM Usuario u JOIN FETCH u.areaPrincipal " +
+           "WHERE (cast(:numeroControl as string) IS NULL OR lower(u.numeroControl) LIKE lower(concat('%', cast(:numeroControl as string), '%'))) " +
+           "AND (cast(:nombre as string) IS NULL OR lower(concat(u.nombre, ' ', u.apellidoPaterno, ' ', coalesce(u.apellidoMaterno,''))) LIKE lower(concat('%', cast(:nombre as string), '%'))) " +
+           "AND (:areaId IS NULL OR u.areaPrincipal.id = :areaId)",
+           countQuery = "SELECT count(u) FROM Usuario u " +
+           "WHERE (cast(:numeroControl as string) IS NULL OR lower(u.numeroControl) LIKE lower(concat('%', cast(:numeroControl as string), '%'))) " +
+           "AND (cast(:nombre as string) IS NULL OR lower(concat(u.nombre, ' ', u.apellidoPaterno, ' ', coalesce(u.apellidoMaterno,''))) LIKE lower(concat('%', cast(:nombre as string), '%'))) " +
+           "AND (:areaId IS NULL OR u.areaPrincipal.id = :areaId)")
+    Page<Usuario> findByFiltros(
+            @Param("numeroControl") String numeroControl,
+            @Param("nombre") String nombre,
+            @Param("areaId") Integer areaId,
+            Pageable pageable);
 
     /**
      * Lista paginada de usuarios cuya área principal está dentro de un conjunto de IDs.
      * Usado por administradores de área para ver solo sus empleados asignados.
      */
-    @Query("SELECT u FROM Usuario u JOIN FETCH u.areaPrincipal " +
-           "WHERE u.areaPrincipal.id IN :areaIds " +
-           "AND lower(concat(u.nombre, ' ', u.apellidoPaterno, ' ', " +
-           "coalesce(u.apellidoMaterno,''))) LIKE lower(concat('%', :nombre, '%'))")
-    Page<Usuario> findByNombreCompletoInAreaIds(
+   @Query(value = "SELECT u FROM Usuario u JOIN FETCH u.areaPrincipal " +
+           "WHERE u.areaPrincipal.id IN :areasPermitidas " +
+           "AND (cast(:numeroControl as string) IS NULL OR lower(u.numeroControl) LIKE lower(concat('%', cast(:numeroControl as string), '%'))) " +
+           "AND (cast(:nombre as string) IS NULL OR lower(concat(u.nombre, ' ', u.apellidoPaterno, ' ', coalesce(u.apellidoMaterno,''))) LIKE lower(concat('%', cast(:nombre as string), '%'))) " +
+           "AND (:areaId IS NULL OR u.areaPrincipal.id = :areaId)",
+           countQuery = "SELECT count(u) FROM Usuario u " +
+           "WHERE u.areaPrincipal.id IN :areasPermitidas " +
+           "AND (cast(:numeroControl as string) IS NULL OR lower(u.numeroControl) LIKE lower(concat('%', cast(:numeroControl as string), '%'))) " +
+           "AND (cast(:nombre as string) IS NULL OR lower(concat(u.nombre, ' ', u.apellidoPaterno, ' ', coalesce(u.apellidoMaterno,''))) LIKE lower(concat('%', cast(:nombre as string), '%'))) " +
+           "AND (:areaId IS NULL OR u.areaPrincipal.id = :areaId)")
+    Page<Usuario> findByFiltrosAndAreasPermitidas(
+            @Param("numeroControl") String numeroControl,
             @Param("nombre") String nombre,
-            @Param("areaIds") Set<Integer> areaIds,
+            @Param("areaId") Integer areaId,
+            @Param("areasPermitidas") Set<Integer> areasPermitidas,
             Pageable pageable);
 
     /**

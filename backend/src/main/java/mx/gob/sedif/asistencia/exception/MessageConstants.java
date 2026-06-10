@@ -72,6 +72,9 @@ public final class MessageConstants {
     public static final String JUSTIFICACION_CREADA       = "Motivo de justificación creado exitosamente";
     public static final String JUSTIFICACION_ACTUALIZADA  = "Motivo de justificación actualizado correctamente";
     public static final String JUSTIFICACION_ELIMINADA    = "Motivo de justificación eliminado";
+    public static final String JUSTIFICACION_ENVIADA      = "Justificación enviada. Queda pendiente de aprobación";
+    public static final String JUSTIFICACION_APROBADA     = "Justificación aprobada correctamente";
+    public static final String JUSTIFICACION_RECHAZADA    = "Justificación rechazada";
 
     // ── Área ───────────────────────────────────────────────────────────────
     public static final String AREA_NO_ENCONTRADA         = "El área solicitada no existe";

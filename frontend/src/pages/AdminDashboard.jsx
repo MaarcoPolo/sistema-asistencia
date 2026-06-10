@@ -3,10 +3,12 @@ import {
   getReporteAsistencias,
   createAsistencia,
   updateAsistencia,
-  deleteAsistencia,
+  // deleteAsistencia, // Reactivar junto con la funcionalidad de eliminar registro
   exportarAsistenciasExcel,
   exportarAsistenciasPdf,
   subirExcelMasivo,
+  aprobarJustificacion,
+  rechazarJustificacion,
 } from '../services/asistenciaService'
 import DynamicTable from '../components/DynamicTable'
 import AsistenciaForm from '../components/AsistenciaForm'
@@ -25,7 +27,7 @@ import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
 import VisibilityIcon from '@mui/icons-material/Visibility'
-import AsistenciaViewModal from '../components/AsistenciaViewModal'
+// import AsistenciaViewModal from '../components/AsistenciaViewModal' // Reactivar con "Ver detalle"
 import ReporteModal from '../components/ReporteModal'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import UploadFileIcon from '@mui/icons-material/UploadFile'
@@ -33,6 +35,8 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ResumenSancionesModal from '../components/ResumenSancionesModal'
 import JustificarModal from '../components/JustificarModal'
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import CancelIcon from '@mui/icons-material/Cancel'
 
 function AdminDashboard() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -40,8 +44,9 @@ function AdminDashboard() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
-  const [viewModalOpen, setViewModalOpen] = useState(false)
-  const [viewingRecord, setViewingRecord] = useState(null)
+  // Estado del modal "Ver detalle", conservado para reactivar la funcionalidad.
+  // const [viewModalOpen, setViewModalOpen] = useState(false)
+  // const [viewingRecord, setViewingRecord] = useState(null)
   const [reporteModalOpen, setReporteModalOpen] = useState(false)
   const { showNotification } = useNotification()
   const [tableKey, setTableKey] = useState(0)
@@ -113,6 +118,26 @@ function AdminDashboard() {
     },
   ]
 
+  const handleAprobarJustificacion = async (idAsistencia) => {
+    try {
+      await aprobarJustificacion(idAsistencia)
+      showNotification('Justificación aprobada correctamente', 'success')
+      setTableKey((prev) => prev + 1) // Recarga la tabla
+    } catch (error) {
+      showNotification(error.response?.data?.message || 'Error al aprobar', 'error')
+    }
+  }
+
+  const handleRechazarJustificacion = async (idAsistencia) => {
+    try {
+      await rechazarJustificacion(idAsistencia)
+      showNotification('Justificación rechazada', 'success')
+      setTableKey((prev) => prev + 1) // Recarga la tabla
+    } catch (error) {
+      showNotification(error.response?.data?.message || 'Error al rechazar', 'error')
+    }
+  }
+
   const fetchDataWithFilters = async (params) => {
     const allParams = { ...params, ...filters }
     if (!allParams.fechaInicio) delete allParams.fechaInicio
@@ -130,15 +155,17 @@ function AdminDashboard() {
     setEditingRecord(null)
   }
 
-  const handleOpenViewModal = (record) => {
-    setViewingRecord(record)
-    setViewModalOpen(true)
-  }
-
-  const handleCloseViewModal = () => {
-    setViewingRecord(null)
-    setViewModalOpen(false)
-  }
+  // FUNCIONALIDAD "VER DETALLE" DESHABILITADA A PETICIÓN.
+  // Se conserva comentada para reactivarla fácilmente si se vuelve a solicitar.
+  // const handleOpenViewModal = (record) => {
+  //   setViewingRecord(record)
+  //   setViewModalOpen(true)
+  // }
+  //
+  // const handleCloseViewModal = () => {
+  //   setViewingRecord(null)
+  //   setViewModalOpen(false)
+  // }
 
   const handleSubmit = (formData) => {
     const action = editingRecord ? 'update' : 'create'
@@ -174,31 +201,34 @@ function AdminDashboard() {
     }
   }
 
-  const handleDeleteClick = (record) => {
-    setConfirmAction(() => () => executeDelete(record.idAsistencia))
-    setConfirmData({
-      title: 'Confirmar Eliminación',
-      message: `¿Estás seguro de que quieres eliminar este registro de asistencia?`,
-    })
-    setConfirmOpen(true)
-  }
+  // FUNCIONALIDAD "ELIMINAR REGISTRO" DESHABILITADA A PETICIÓN.
+  // Se conserva comentada (junto con executeDelete) para reactivarla si se solicita.
+  // const handleDeleteClick = (record) => {
+  //   setConfirmAction(() => () => executeDelete(record.idAsistencia))
+  //   setConfirmData({
+  //     title: 'Confirmar Eliminación',
+  //     message: `¿Estás seguro de que quieres eliminar este registro de asistencia?`,
+  //   })
+  //   setConfirmOpen(true)
+  // }
 
-  const executeDelete = async (id) => {
-    try {
-      await deleteAsistencia(id)
-      showNotification('Registro eliminado con éxito', 'success')
-      setTimeout(() => {
-        setTableKey((prev) => prev + 1)
-      }, 300)
-    } catch (error) {
-      console.error('Error al eliminar el registro:', error)
-      const errorMessage =
-        error.response?.data?.message || 'Error al eliminar el registro'
-      showNotification(errorMessage, 'error')
-    } finally {
-      setConfirmOpen(false)
-    }
-  }
+  // Lógica de eliminación conservada para reactivar "Eliminar registro" si se solicita.
+  // const executeDelete = async (id) => {
+  //   try {
+  //     await deleteAsistencia(id)
+  //     showNotification('Registro eliminado con éxito', 'success')
+  //     setTimeout(() => {
+  //       setTableKey((prev) => prev + 1)
+  //     }, 300)
+  //   } catch (error) {
+  //     console.error('Error al eliminar el registro:', error)
+  //     const errorMessage =
+  //       error.response?.data?.message || 'Error al eliminar el registro'
+  //     showNotification(errorMessage, 'error')
+  //   } finally {
+  //     setConfirmOpen(false)
+  //   }
+  // }
 
   const handleFilterChange = (event) => {
     const { name, value } = event.target
@@ -326,28 +356,46 @@ function AdminDashboard() {
         columns={columns}
         fetchDataFunction={fetchDataWithFilters}
         renderActions={(row) => (
-          <>
-            <IconButton
-              color="default"
-              onClick={() => handleOpenViewModal(row)}>
-              <VisibilityIcon />
-            </IconButton>
-            {row.estatusIncidencia !== 0 && !row.motivoJustificacion && (
-              <Tooltip title="Justificar">
-                <IconButton
-                  color="success"
-                  onClick={() => handleOpenJustificar(row)}>
-                  <VerifiedUserIcon />
-                </IconButton>
-              </Tooltip>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {/*
+              1. Botón para justificar directo (atajo del admin: aprueba al instante).
+                 Aparece si hay incidencia y no existe justificación, o si la anterior
+                 fue RECHAZADA (permite re-justificar).
+            */}
+            {row.estatusIncidencia !== 0 &&
+              (!row.motivoJustificacion ||
+                row.estatusJustificacion === 'RECHAZADA') && (
+                <Tooltip title="Justificar Falta/Retardo">
+                  <IconButton color="warning" onClick={() => handleOpenJustificar(row)}>
+                    <VerifiedUserIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+            {/* 2. Botones de Aprobar / Rechazar (Si está PENDIENTE) */}
+            {row.estatusJustificacion === 'PENDIENTE' && (
+              <>
+                <Tooltip title="Aprobar Justificación">
+                  <IconButton color="success" onClick={() => handleAprobarJustificacion(row.idAsistencia)}>
+                    <CheckCircleIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Rechazar Justificación">
+                  <IconButton color="error" onClick={() => handleRechazarJustificacion(row.idAsistencia)}>
+                    <CancelIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
             )}
-            {/* <IconButton color="primary" onClick={() => handleOpenModal(row)}>
-              <EditIcon />
-            </IconButton>
-            <IconButton color="error" onClick={() => handleDeleteClick(row)}>
-              <DeleteIcon />
-            </IconButton> */}
-          </>
+
+            {/* 3. Etiquetas visuales si ya se tomó una decisión */}
+            {row.estatusJustificacion === 'APROBADA' && (
+              <Chip label="Aprobada" color="success" size="small" />
+            )}
+            {row.estatusJustificacion === 'RECHAZADA' && (
+              <Chip label="Rechazada" color="error" size="small" />
+            )}
+          </Box>
         )}
       />
 
@@ -364,11 +412,13 @@ function AdminDashboard() {
         title={confirmData?.title}
         message={confirmData?.message}
       />
+      {/* Modal "Ver detalle" deshabilitado a petición; se conserva para reactivar.
       <AsistenciaViewModal
         open={viewModalOpen}
         onClose={handleCloseViewModal}
         record={viewingRecord}
       />
+      */}
       <ReporteModal
         open={reporteModalOpen}
         onClose={() => setReporteModalOpen(false)}

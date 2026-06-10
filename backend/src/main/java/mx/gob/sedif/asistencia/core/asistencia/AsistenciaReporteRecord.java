@@ -17,5 +17,6 @@ public record AsistenciaReporteRecord(
     String fotoEntrada,
     String fotoSalida,
     String ipRegistro,
-    String motivoJustificacion
+    String motivoJustificacion,
+    String estatusJustificacion
 ) {}

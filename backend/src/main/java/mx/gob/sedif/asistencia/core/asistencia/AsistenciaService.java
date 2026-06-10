@@ -8,6 +8,7 @@ import mx.gob.sedif.asistencia.core.horario.*;
 import mx.gob.sedif.asistencia.core.usuario.Usuario;
 import mx.gob.sedif.asistencia.core.usuario.UsuarioRepository;
 import mx.gob.sedif.asistencia.security.SecurityUtil;
+import mx.gob.sedif.asistencia.util.enums.EstatusJustificacion;
 import mx.gob.sedif.asistencia.util.enums.Rol;
 
 import org.springframework.data.domain.Page;
@@ -376,9 +377,13 @@ public class AsistenciaService {
         String nombreCompleto = usuario.getNombre() + " " + usuario.getApellidoPaterno() +
                 (usuario.getApellidoMaterno() != null ? " " + usuario.getApellidoMaterno() : "");
 
-                String motivo = entity.getJustificacionAplicada() != null 
-                ? entity.getJustificacionAplicada().getJustificacion().getNombre() 
-                : null;
+        String motivo = null;
+        String estatusJustificacion = null;
+        
+        if (entity.getJustificacionAplicada() != null) {
+            motivo = entity.getJustificacionAplicada().getJustificacion().getNombre();
+            estatusJustificacion = entity.getJustificacionAplicada().getEstatus().name();
+        }
 
         return new AsistenciaReporteRecord(
                 entity.getId(),
@@ -394,7 +399,8 @@ public class AsistenciaService {
                 entity.getFotoEntrada(),
                 entity.getFotoSalida(),
                 entity.getIpRegistro(),
-                motivo
+                motivo,
+                estatusJustificacion
         );
     }
 
@@ -517,7 +523,8 @@ public class AsistenciaService {
         // 2. Filtramos: Solo nos importan las que son Incidencias (> 0) y NO están justificadas
         List<Asistencia> incidenciasEfectivas = todasLasAsistencias.stream()
             .filter(a -> a.getEstatusIncidencia() > ESTATUS_OK)
-            .filter(a -> a.getJustificacionAplicada() == null)
+            .filter(a -> a.getJustificacionAplicada() == null ||
+                        a.getJustificacionAplicada().getEstatus() != EstatusJustificacion.APROBADA)
             .collect(Collectors.toList());
 
         // 3. Agrupamos todas las incidencias por Empleado
@@ -657,15 +664,40 @@ public class AsistenciaService {
     /* ====================================================================================
      * APLICACIÓN DE JUSTIFICACIONES (MANTIENE EL ESTATUS ORIGINAL INTACTO)
      * ==================================================================================== */
+    /**
+     * Registra (o re-registra) una justificación sobre una incidencia de asistencia.
+     *
+     * <p>El estatus inicial define el flujo:
+     * <ul>
+     *   <li>{@code PENDIENTE} → la envía el empleado y queda esperando aprobación del admin.</li>
+     *   <li>{@code APROBADA}  → atajo del admin: justifica y aprueba en un solo paso.</li>
+     * </ul>
+     *
+     * <p>Reglas de reintento: si ya existe una justificación previa, solo se permite
+     * sobrescribirla cuando estaba {@code RECHAZADA} (el empleado puede volver a intentar).
+     * Si está {@code PENDIENTE} o {@code APROBADA}, se bloquea para no duplicar el trámite.
+     *
+     * @param asistenciaId    Id de la asistencia a justificar.
+     * @param justificacionId Id del motivo del catálogo.
+     * @param observacion     Texto opcional/obligatorio según el motivo.
+     * @param usuarioRegistro Número de control de quien registra la justificación.
+     * @param estatusInicial  Estatus con el que nace la justificación (PENDIENTE o APROBADA).
+     */
     @Transactional
-    public void justificarAsistencia(Long asistenciaId, Integer justificacionId, String observacion, String usuarioRegistro) {
+    public void justificarAsistencia(Long asistenciaId, Integer justificacionId, String observacion, String usuarioRegistro, EstatusJustificacion estatusInicial) {
         // 1. Buscamos el registro de asistencia
         Asistencia asistencia = asistenciaRepository.findById(asistenciaId)
             .orElseThrow(() -> new RuntimeException("Registro de asistencia no encontrado"));
 
-        // 2. Validamos que no tenga una justificación previa
-        if (asistencia.getJustificacionAplicada() != null) {
-            throw new IllegalStateException("Este registro ya tiene una justificación aplicada.");
+        // 2. Validamos el estado de cualquier justificación previa.
+        //    Consultamos por id de asistencia (fuente de verdad) en lugar de la
+        //    relación lazy inversa, para evitar lecturas cacheadas/inconsistentes.
+        //    Solo se permite continuar si NO existe o si la anterior fue RECHAZADA (reintento).
+        AsistenciaJustificacion justificacionPrevia =
+                asistenciaJustificacionRepository.findByAsistenciaId(asistenciaId).orElse(null);
+        if (justificacionPrevia != null
+                && justificacionPrevia.getEstatus() != EstatusJustificacion.RECHAZADA) {
+            throw new IllegalStateException("Este registro ya tiene una justificación en proceso o aprobada.");
         }
 
         // 3. Buscamos el motivo en el catálogo
@@ -677,14 +709,18 @@ public class AsistenciaService {
             throw new IllegalArgumentException("Este motivo de justificación requiere una observación obligatoria.");
         }
 
-        // 5. Creamos el puente (sin tocar el estatusIncidencia de la tabla original)
-        AsistenciaJustificacion nuevaJustificacion = new AsistenciaJustificacion();
-        nuevaJustificacion.setAsistencia(asistencia);
-        nuevaJustificacion.setJustificacion(justificacion);
-        nuevaJustificacion.setObservacion(observacion);
-        nuevaJustificacion.setUsuarioRegistro(usuarioRegistro); // El "admin001" que autoriza
+        // 5. Reutilizamos la fila rechazada si existe (reintento); si no, creamos una nueva.
+        //    Así evitamos duplicar registros y respetamos la restricción @OneToOne unique.
+        AsistenciaJustificacion justificacionAGuardar =
+                (justificacionPrevia != null) ? justificacionPrevia : new AsistenciaJustificacion();
 
-        asistenciaJustificacionRepository.save(nuevaJustificacion);
+        justificacionAGuardar.setAsistencia(asistencia);
+        justificacionAGuardar.setJustificacion(justificacion);
+        justificacionAGuardar.setObservacion(observacion);
+        justificacionAGuardar.setUsuarioRegistro(usuarioRegistro); // Quien registra (empleado o admin)
+        justificacionAGuardar.setEstatus(estatusInicial);          // PENDIENTE (empleado) o APROBADA (atajo admin)
+
+        asistenciaJustificacionRepository.save(justificacionAGuardar);
     }
 
     /* ====================================================================================
@@ -717,6 +753,57 @@ public class AsistenciaService {
         }
 
         // Si pasa el filtro de seguridad, reutilizamos la lógica central que ya programaste
-        justificarAsistencia(asistenciaId, justificacionId, observacion, numeroControl);
+        justificarAsistencia(asistenciaId, justificacionId, observacion, numeroControl, EstatusJustificacion.PENDIENTE);
+    }
+
+    /**
+     * Aprueba una justificación que está en estado PENDIENTE.
+     * Una vez aprobada, la incidencia deja de contar para el cálculo de sanciones.
+     *
+     * @param asistenciaId Id de la asistencia cuya justificación se aprueba.
+     * @throws IllegalStateException si no hay justificación o si no está PENDIENTE.
+     */
+    @Transactional
+    public void aprobarJustificacion(Long asistenciaId) {
+        AsistenciaJustificacion justificacion = obtenerJustificacionPendiente(asistenciaId);
+        justificacion.setEstatus(EstatusJustificacion.APROBADA);
+        asistenciaJustificacionRepository.save(justificacion);
+    }
+
+    /**
+     * Rechaza una justificación que está en estado PENDIENTE.
+     * Tras el rechazo, el empleado puede volver a justificar la misma incidencia.
+     *
+     * @param asistenciaId Id de la asistencia cuya justificación se rechaza.
+     * @throws IllegalStateException si no hay justificación o si no está PENDIENTE.
+     */
+    @Transactional
+    public void rechazarJustificacion(Long asistenciaId) {
+        AsistenciaJustificacion justificacion = obtenerJustificacionPendiente(asistenciaId);
+        justificacion.setEstatus(EstatusJustificacion.RECHAZADA);
+        asistenciaJustificacionRepository.save(justificacion);
+    }
+
+    /**
+     * Recupera la justificación de una asistencia validando que exista y que
+     * esté en estado PENDIENTE. Centraliza la regla compartida por aprobar/rechazar
+     * para impedir transiciones inválidas (ej. re-aprobar una ya rechazada).
+     *
+     * @param asistenciaId Id de la asistencia.
+     * @return La justificación pendiente lista para cambiar de estado.
+     * @throws IllegalStateException si no existe o no está PENDIENTE.
+     */
+    private AsistenciaJustificacion obtenerJustificacionPendiente(Long asistenciaId) {
+        // Consultamos directamente por id de asistencia (fuente de verdad determinista),
+        // en vez de la relación lazy inversa Asistencia.justificacionAplicada.
+        AsistenciaJustificacion justificacion =
+                asistenciaJustificacionRepository.findByAsistenciaId(asistenciaId)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Esta incidencia no tiene una justificación registrada."));
+
+        if (justificacion.getEstatus() != EstatusJustificacion.PENDIENTE) {
+            throw new IllegalStateException("Esta justificación ya fue procesada y no puede modificarse.");
+        }
+        return justificacion;
     }
 }

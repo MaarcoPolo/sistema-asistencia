@@ -14,7 +14,7 @@ import JustificarModal from '../components/JustificarModal'
 import CambiarContrasenaModal from '../components/CambiarContrasenaModal'
 
 function MisAsistencias() {
-  const { authData, logout } = useAuth()
+  const { logout } = useAuth()
   const navigate = useNavigate()
   const [tableKey, setTableKey] = useState(0)
   
@@ -128,15 +128,38 @@ function MisAsistencias() {
             columns={columns}
             fetchDataFunction={getMisAsistencias}
             renderActions={(row) => (
-              <>
-                {row.estatusIncidencia !== 0 && !row.motivoJustificacion && (
-                  <Tooltip title="Justificar esta incidencia">
-                    <IconButton color="primary" onClick={() => handleOpenJustificar(row)}>
-                      <VerifiedUserIcon fontSize="large" />
-                    </IconButton>
-                  </Tooltip>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                {/*
+                  Botón para justificar. Aparece cuando hay una incidencia y:
+                  - no existe justificación previa, o
+                  - la justificación anterior fue RECHAZADA (el empleado puede reintentar).
+                */}
+                {row.estatusIncidencia !== 0 &&
+                  (!row.motivoJustificacion ||
+                    row.estatusJustificacion === 'RECHAZADA') && (
+                    <Tooltip
+                      title={
+                        row.estatusJustificacion === 'RECHAZADA'
+                          ? 'Volver a justificar esta incidencia'
+                          : 'Justificar esta incidencia'
+                      }>
+                      <IconButton color="primary" onClick={() => handleOpenJustificar(row)}>
+                        <VerifiedUserIcon fontSize="large" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+
+                {/* Etiquetas de estado devueltas por el Backend */}
+                {row.estatusJustificacion === 'PENDIENTE' && (
+                  <Chip label="Pendiente de Aprobación" color="warning" size="small" />
                 )}
-              </>
+                {row.estatusJustificacion === 'RECHAZADA' && (
+                  <Chip label="Rechazada" color="error" size="small" />
+                )}
+                {row.estatusJustificacion === 'APROBADA' && (
+                  <Chip label="Justificada" color="success" size="small" />
+                )}
+              </Box>
             )}
           />
         </CardContent>
@@ -147,6 +170,7 @@ function MisAsistencias() {
         onClose={() => setJustificarModalOpen(false)}
         record={recordToJustify}
         onSuccess={() => setTableKey((prev) => prev + 1)}
+        esEmpleado // El empleado deja la justificación PENDIENTE de aprobación
       />
 
       <CambiarContrasenaModal

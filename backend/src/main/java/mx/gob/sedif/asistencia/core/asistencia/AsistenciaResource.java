@@ -310,7 +310,7 @@ public class AsistenciaResource {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         asistenciaService.justificarAsistencia(id, request.justificacionId(),
-                request.observacion(), userDetails.getUsername());
+                request.observacion(), userDetails.getUsername(),mx.gob.sedif.asistencia.util.enums.EstatusJustificacion.APROBADA);
         return ResponseEntity.ok(ApiResponse.ok(MessageConstants.JUSTIFICACION_APLICADA));
     }
 
@@ -342,7 +342,8 @@ public class AsistenciaResource {
     ) {
         asistenciaService.justificarMiAsistencia(id, request.justificacionId(),
                 request.observacion(), userDetails.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok(MessageConstants.JUSTIFICACION_APLICADA));
+        // El empleado deja la justificación PENDIENTE; el mensaje refleja que espera aprobación.
+        return ResponseEntity.ok(ApiResponse.ok(MessageConstants.JUSTIFICACION_ENVIADA));
     }
 
     // ── Métodos privados auxiliares ───────────────────────────────────────
@@ -369,5 +370,28 @@ public class AsistenciaResource {
 
         String descripcion = filtros.collect(Collectors.joining(" - "));
         return descripcion.isEmpty() ? "Reporte General" : "Filtros Aplicados: " + descripcion;
+    }
+
+    /**
+     * Aprueba una justificación pendiente (solo administradores).
+     * HTTP 200.
+     */
+    @PostMapping("/{id}/justificacion/aprobar")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> aprobarJustificacion(@PathVariable Long id) {
+        asistenciaService.aprobarJustificacion(id);
+        return ResponseEntity.ok(ApiResponse.ok(MessageConstants.JUSTIFICACION_APROBADA));
+    }
+
+    /**
+     * Rechaza una justificación pendiente (solo administradores).
+     * Tras el rechazo el empleado podrá volver a justificar la incidencia.
+     * HTTP 200.
+     */
+    @PostMapping("/{id}/justificacion/rechazar")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> rechazarJustificacion(@PathVariable Long id) {
+        asistenciaService.rechazarJustificacion(id);
+        return ResponseEntity.ok(ApiResponse.ok(MessageConstants.JUSTIFICACION_RECHAZADA));
     }
 }

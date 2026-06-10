@@ -12,7 +12,7 @@ import {
   InputLabel,
   FormHelperText,
 } from '@mui/material'
-import { getAreasForSelect } from '../services/areaService'
+// import { getAreasForSelect } from '../services/areaService' // Usado solo por el Select de Área Padre (oculto)
 
 const estados = [
   { value: 'ACTIVE', label: 'Activo' },
@@ -21,28 +21,28 @@ const estados = [
 
 function AreaForm({ open, onClose, onSubmit, initialData }) {
   const [formData, setFormData] = useState({})
-  const [areas, setAreas] = useState([])
 
-  useEffect(() => {
-      if (open) {
-        // Cargar áreas solo cuando el modal se abre
-        getAreasForSelect().then((response) => {
-          // Extraemos la lista real del ApiResponse de Java
-          const listaAreas = response.data?.data || response.data || []
-          const areasArray = Array.isArray(listaAreas) ? listaAreas : []
-
-          // Filtramos para que un área no pueda ser su propia área padre
-          const filteredAreas = initialData
-            ? areasArray.filter((area) => area.id !== initialData.id)
-            : areasArray
-            
-          setAreas(filteredAreas)
-        }).catch((error) => {
-          console.error("Error al cargar áreas:", error)
-          setAreas([])
-        })
-      }
-    }, [initialData, open])
+  // NOTA: La carga del catálogo de áreas (getAreasForSelect) se usaba únicamente
+  // para poblar el Select de "Área Padre", hoy oculto. Se deja comentada para
+  // poder retomar la jerarquía sin reescribir la lógica.
+  //
+  // const [areas, setAreas] = useState([])
+  // useEffect(() => {
+  //   if (open) {
+  //     getAreasForSelect().then((response) => {
+  //       const listaAreas = response.data?.data || response.data || []
+  //       const areasArray = Array.isArray(listaAreas) ? listaAreas : []
+  //       // Evita que un área sea su propia área padre
+  //       const filteredAreas = initialData
+  //         ? areasArray.filter((area) => area.id !== initialData.id)
+  //         : areasArray
+  //       setAreas(filteredAreas)
+  //     }).catch((error) => {
+  //       console.error("Error al cargar áreas:", error)
+  //       setAreas([])
+  //     })
+  //   }
+  // }, [initialData, open])
 
   useEffect(() => {
     setFormData(initialData || { estatus: 'ACTIVE' })
@@ -92,6 +92,13 @@ function AreaForm({ open, onClose, onSubmit, initialData }) {
             margin="normal"
             helperText="Ej: 192.168.1.100. Dejar en blanco para no validar IP en esta área."
           />
+          {/*
+            CAMPO "ÁREA PADRE" OCULTO A PETICIÓN.
+            Se mantiene comentado (no se elimina) por si se retoma la jerarquía.
+            Importante: al EDITAR, el valor existente de idAreaPadre se conserva
+            porque formData se inicializa con initialData y nunca se sobrescribe aquí,
+            así que las áreas que ya tienen padre no pierden su jerarquía.
+
           <FormControl fullWidth margin="normal">
             <InputLabel>Área Padre (Opcional)</InputLabel>
             <Select
@@ -109,6 +116,7 @@ function AreaForm({ open, onClose, onSubmit, initialData }) {
               ))}
             </Select>
           </FormControl>
+          */}
 
           <FormControl fullWidth margin="normal">
             <InputLabel>Estatus</InputLabel>

@@ -56,40 +56,32 @@ public class UsuarioService {
      * @param pageable Configuración de paginación y ordenamiento.
      * @return Página de {@link UsuarioRecord} con datos de presentación incluidos.
      */
-    @Transactional(readOnly = true)
-    public Page<UsuarioRecord> getAll(String key, Pageable pageable) {
+   @Transactional(readOnly = true)
+    public Page<UsuarioRecord> getAll(String key, String numeroControl, Integer areaId, Pageable pageable) {
         Usuario currentUser = securityUtil.getCurrentUser()
                 .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
 
         Page<Usuario> usuariosPage;
+        
+        // Convertir strings vacíos a null para que funcione el IS NULL de la consulta
+        String searchNombre = (key == null || key.isBlank()) ? null : key;
+        String searchNumCtrl = (numeroControl == null || numeroControl.isBlank()) ? null : numeroControl;
 
         if (currentUser.getRol() == Rol.SUPERADMIN) {
-            usuariosPage = usuarioRepository.findByNombreCompletoContaining(key, pageable);
+            usuariosPage = usuarioRepository.findByFiltros(searchNumCtrl, searchNombre, areaId, pageable);
         } else if (currentUser.getRol() == Rol.ADMIN) {
-            Set<Integer> idsDeSusAreas = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
-            if (idsDeSusAreas.isEmpty()) {
-                return Page.empty(pageable);
+            Set<Integer> idsPermitidos = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (idsPermitidos.isEmpty()) {
+                return new PageImpl<>(List.of(), pageable, 0);
             }
-            usuariosPage = usuarioRepository.findByNombreCompletoInAreaIds(key, idsDeSusAreas, pageable);
+            usuariosPage = usuarioRepository.findByFiltrosAndAreasPermitidas(searchNumCtrl, searchNombre, areaId, idsPermitidos, pageable);
         } else {
-            return Page.empty(pageable);
+            return new PageImpl<>(List.of(), pageable, 0);
         }
 
-        // Batch load de horarios: una sola query para todos los usuarios de la página
-        List<Integer> idsEnPagina = usuariosPage.getContent().stream()
-                .map(Usuario::getId)
-                .collect(Collectors.toList());
-
-        Map<Integer, HorarioUsuario> horariosPorUsuario = horarioUsuarioRepository
-                .findByUsuarioIdIn(idsEnPagina)
-                .stream()
-                .collect(Collectors.toMap(hu -> hu.getUsuario().getId(), hu -> hu));
-
-        List<UsuarioRecord> records = usuariosPage.getContent().stream()
-                .map(u -> toRecord(u, horariosPorUsuario.get(u.getId())))
-                .collect(Collectors.toList());
-
-        return new PageImpl<>(records, pageable, usuariosPage.getTotalElements());
+        // Se usa una lambda explícita para invocar el método toRecord(Usuario) 
+        // que ya existe en la línea 240 de tu archivo.
+        return usuariosPage.map(usuario -> this.toRecord(usuario));
     }
 
     /**

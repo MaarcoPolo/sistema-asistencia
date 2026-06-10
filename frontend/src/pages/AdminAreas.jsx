@@ -26,11 +26,13 @@ function AdminAreas() {
   const columns = [
     { id: 'clave', label: 'Clave' },
     { id: 'nombre', label: 'Nombre' },
-    {
-      id: 'nombreAreaPadre',
-      sortId: 'areaPadre.nombre',
-      label: 'Área Padre',
-    },
+    // Columna "Área Padre" oculta a petición (jerarquía no visible en el UI).
+    // Se deja comentada para poder retomarla sin reconstruir la definición.
+    // {
+    //   id: 'nombreAreaPadre',
+    //   sortId: 'areaPadre.nombre',
+    //   label: 'Área Padre',
+    // },
     { id: 'estatus', label: 'Estatus' },
   ]
 

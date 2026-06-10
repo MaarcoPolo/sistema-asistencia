@@ -17,7 +17,10 @@ apiClient.interceptors.response.use(
   (response) => {
     // Si la respuesta es un ApiResponse (trae .data), devolvemos el contenido real.
     // Si no, devolvemos la respuesta tal cual (ej. para archivos blob).
-    if (response.data && response.data.hasOwnProperty('data')) {
+    if (
+      response.data &&
+      Object.prototype.hasOwnProperty.call(response.data, 'data')
+    ) {
       return { ...response, data: response.data.data }
     }
     return response

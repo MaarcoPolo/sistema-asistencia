@@ -182,3 +182,15 @@ export const justificarMiAsistencia = async (id, data) => {
   const response = await apiClient.post(`/asistencia/${id}/mi-justificacion`, data)
   return response.data
 }
+
+// Aprobar una justificación pendiente
+export const aprobarJustificacion = async (id) => {
+  const response = await apiClient.post(`/asistencia/${id}/justificacion/aprobar`)
+  return response.data
+}
+
+// Rechazar una justificación pendiente
+export const rechazarJustificacion = async (id) => {
+  const response = await apiClient.post(`/asistencia/${id}/justificacion/rechazar`)
+  return response.data
+}

@@ -66,7 +66,7 @@ function ResumenSancionesModal({ open, onClose }) {
       setResultados(data)
       if (data.length === 0)
         showNotification('No se encontraron sanciones en este periodo', 'info')
-    } catch (error) {
+    } catch {
       showNotification('Error al calcular las sanciones', 'error')
     } finally {
       setLoading(false)
@@ -85,7 +85,7 @@ function ResumenSancionesModal({ open, onClose }) {
     try {
       await exportarSancionesPdf(prepararParametros())
       showNotification('PDF generado con éxito', 'success')
-    } catch (error) {
+    } catch {
       showNotification('Error al descargar el PDF', 'error')
     } finally {
       setDownloading(false)
@@ -104,7 +104,7 @@ function ResumenSancionesModal({ open, onClose }) {
     try {
       await exportarSancionesExcel(prepararParametros())
       showNotification('Excel generado con éxito', 'success')
-    } catch (error) {
+    } catch {
       showNotification('Error al descargar el Excel', 'error')
     } finally {
       setDownloading(false)

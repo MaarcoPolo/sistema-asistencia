@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import mx.gob.sedif.asistencia.core.asistencia.Asistencia;
+import mx.gob.sedif.asistencia.util.enums.EstatusJustificacion;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -36,6 +38,10 @@ public class AsistenciaJustificacion {
 
     @Column(name = "s_usuario_registro", nullable = false, updatable = false)
     private String usuarioRegistro;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "s_estatus", nullable = false)
+    private EstatusJustificacion estatus = EstatusJustificacion.PENDIENTE;
 
     @PrePersist
     public void prePersist() {

@@ -44,9 +44,11 @@ public class UsuarioResource {
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<UsuarioRecord>>> getAll(
             @RequestParam(required = false, defaultValue = "") String key,
+            @RequestParam(required = false) String numeroControl,
+            @RequestParam(required = false) Integer areaId,
             @PageableDefault(size = 25, sort = "nombre", direction = Sort.Direction.ASC) Pageable pageable
     ) {
-        Page<UsuarioRecord> resultado = usuarioService.getAll(key, pageable);
+        Page<UsuarioRecord> resultado = usuarioService.getAll(key, numeroControl, areaId, pageable);
         return ResponseEntity.ok(ApiResponse.ok(MessageConstants.USUARIOS_OBTENIDOS, resultado));
     }
 

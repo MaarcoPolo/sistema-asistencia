@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
   // forzar el cierre de sesión cuando el refresh token también expira.
   useEffect(() => {
     registerLogout(logout)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const value = { authData, login, logout, isAuthLoading }
 
@@ -85,6 +85,7 @@ export const AuthProvider = ({ children }) => {
  *
  * @returns {{ authData, login, logout, isAuthLoading }}
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   return useContext(AuthContext)
 }

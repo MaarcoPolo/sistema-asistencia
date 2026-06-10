@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -12,10 +12,20 @@ import {
   Box,
 } from '@mui/material'
 import { getJustificacionesSelect } from '../services/justificacionService'
-import { justificarAsistencia } from '../services/asistenciaService'
+import {
+  justificarAsistencia,
+  justificarMiAsistencia,
+} from '../services/asistenciaService'
 import { useNotification } from '../context/NotificationContext'
 
-function JustificarModal({ open, onClose, record, onSuccess }) {
+/**
+ * Modal para justificar una incidencia de asistencia.
+ *
+ * @param {boolean} esEmpleado  Si es true, el empleado justifica su propia incidencia
+ *                              y queda PENDIENTE de aprobación. Si es false (admin),
+ *                              se aplica el atajo que aprueba directamente.
+ */
+function JustificarModal({ open, onClose, record, onSuccess, esEmpleado = false }) {
   const [motivos, setMotivos] = useState([])
   const [formData, setFormData] = useState({
     justificacionId: '',
@@ -25,24 +35,26 @@ function JustificarModal({ open, onClose, record, onSuccess }) {
   const [fetchingMotivos, setFetchingMotivos] = useState(false)
   const { showNotification } = useNotification()
 
+  // useCallback estabiliza la referencia para poder declararla como
+  // dependencia del useEffect sin recrearla en cada render.
+  const cargarMotivos = useCallback(async () => {
+    setFetchingMotivos(true)
+    try {
+      const data = await getJustificacionesSelect()
+      setMotivos(data)
+    } catch {
+      showNotification('Error al cargar catálogo de justificaciones', 'error')
+    } finally {
+      setFetchingMotivos(false)
+    }
+  }, [showNotification])
+
   useEffect(() => {
     if (open) {
       cargarMotivos()
       setFormData({ justificacionId: '', observacion: '' })
     }
-  }, [open])
-
-  const cargarMotivos = async () => {
-    setFetchingMotivos(true)
-    try {
-      const data = await getJustificacionesSelect()
-      setMotivos(data)
-    } catch (error) {
-      showNotification('Error al cargar catálogo de justificaciones', 'error')
-    } finally {
-      setFetchingMotivos(false)
-    }
-  }
+  }, [open, cargarMotivos])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -53,8 +65,10 @@ function JustificarModal({ open, onClose, record, onSuccess }) {
     e.preventDefault()
 
     // Validación de la regla: ¿El motivo requiere observación?
+    // Se compara con Number() porque el value del Select llega como string
+    // y los ids del catálogo son numéricos (antes el === fallaba siempre).
     const motivoSeleccionado = motivos.find(
-      (m) => m.id === formData.justificacionId,
+      (m) => m.id === Number(formData.justificacionId),
     )
     if (
       motivoSeleccionado?.requiereObservacion &&
@@ -69,11 +83,23 @@ function JustificarModal({ open, onClose, record, onSuccess }) {
 
     setLoading(true)
     try {
-      await justificarAsistencia(record.idAsistencia, {
+      const payload = {
         justificacionId: formData.justificacionId,
         observacion: formData.observacion,
-      })
-      showNotification('Justificación aplicada correctamente', 'success')
+      }
+
+      // El empleado deja la justificación PENDIENTE; el admin la aplica/aprueba directo.
+      if (esEmpleado) {
+        await justificarMiAsistencia(record.idAsistencia, payload)
+        showNotification(
+          'Justificación enviada. Queda pendiente de aprobación',
+          'success',
+        )
+      } else {
+        await justificarAsistencia(record.idAsistencia, payload)
+        showNotification('Justificación aplicada correctamente', 'success')
+      }
+
       onSuccess() // Recarga la tabla del dashboard
       onClose()
     } catch (error) {

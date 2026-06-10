@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Las credenciales se inyectan desde un archivo .env local (no commitear).
 # Copiar .env.example a .env y ajustar los valores antes de levantar.
 
