@@ -1,0 +1,23 @@
+# ── Override de DESARROLLO LOCAL (tu PC) ──────────────────────────────────────
+# Restaura los puertos publicados para que puedas acceder a la app desde tu
+# máquina sin un reverse proxy. Úsalo en tu PC:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+#
+# (O fija COMPOSE_FILE=docker-compose.yml:docker-compose.local.yml en tu PC.)
+#
+# El docker-compose.yml base ya NO trae puertos: en el servidor se usa
+# docker-compose.prod.yml (sin puertos, vía red de NPM) y aquí los reponemos.
+
+services:
+  db:
+    ports:
+      - "5433:5432"
+
+  backend:
+    ports:
+      - "8080:8080"
+
+  frontend:
+    ports:
+      - "80:8080"

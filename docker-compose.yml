@@ -9,8 +9,9 @@ services:
       POSTGRES_DB: ${DB_NAME:-asistencia_db}
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5433:5432"
+    # Los puertos publicados NO se definen aquí: dependen del entorno.
+    #   - Local:      docker-compose.local.yml  (expone a tu PC)
+    #   - Servidor:   docker-compose.prod.yml   (sin puertos; vía red de NPM)
     volumes:
       - pgdata:/var/lib/postgresql/data
     # Healthcheck para que el backend espere a que la BD esté lista.
@@ -27,8 +28,7 @@ services:
   backend:
     build: ./backend
     container_name: asistencia-backend
-    ports:
-      - "8080:8080"
+    # Puertos definidos por entorno (ver nota en el servicio db).
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-asistencia_db}
@@ -47,9 +47,8 @@ services:
   frontend:
     build: ./frontend
     container_name: asistencia-frontend
-    ports:
-      # Nginx corre sin root y escucha en 8080 dentro del contenedor (ID-016).
-      - "80:8080"
+    # Nginx interno escucha en 8080 (sin root, ID-016). Puertos publicados por
+    # entorno (ver nota en el servicio db).
     depends_on:
       - backend
     restart: unless-stopped
