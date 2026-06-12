@@ -3,7 +3,8 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, C
 import { cambiarMiContrasena } from '../services/usuarioService'
 import { useNotification } from '../context/NotificationContext'
 
-function CambiarContrasenaModal({ open, onClose, onSuccess }) {
+function CambiarContrasenaModal({ open, onClose, onSuccess, esPrimerAcceso = false }) {
+  const [currentPassword, setCurrentPassword] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -11,20 +12,27 @@ function CambiarContrasenaModal({ open, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
+    // En primer acceso el backend no exige la contraseña actual; en cualquier
+    // otro caso es obligatoria para evitar el secuestro de cuentas.
+    if (!esPrimerAcceso && !currentPassword) {
+      showNotification('Debes ingresar tu contraseña actual', 'warning')
+      return
+    }
     if (password !== confirmPassword) {
       showNotification('Las contraseñas no coinciden', 'warning')
       return
     }
-    if (password.length < 6) {
-      showNotification('La contraseña debe tener al menos 6 caracteres', 'warning')
+    if (password.length < 8) {
+      showNotification('La contraseña debe tener al menos 8 caracteres', 'warning')
       return
     }
 
     setLoading(true)
     try {
-      await cambiarMiContrasena(password)
+      await cambiarMiContrasena(password, currentPassword)
       showNotification('Contraseña actualizada correctamente', 'success')
+      setCurrentPassword('')
       setPassword('')
       setConfirmPassword('')
       onSuccess() // Recarga el perfil para ocultar la alerta roja
@@ -41,6 +49,18 @@ function CambiarContrasenaModal({ open, onClose, onSuccess }) {
       <DialogTitle>Cambiar Mi Contraseña</DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent dividers>
+          {!esPrimerAcceso && (
+            <TextField
+              fullWidth
+              type="password"
+              label="Contraseña Actual"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+              margin="normal"
+              autoComplete="current-password"
+            />
+          )}
           <TextField
             fullWidth
             type="password"
@@ -49,6 +69,7 @@ function CambiarContrasenaModal({ open, onClose, onSuccess }) {
             onChange={(e) => setPassword(e.target.value)}
             required
             margin="normal"
+            autoComplete="new-password"
           />
           <TextField
             fullWidth
@@ -58,6 +79,7 @@ function CambiarContrasenaModal({ open, onClose, onSuccess }) {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             margin="normal"
+            autoComplete="new-password"
           />
         </DialogContent>
         <DialogActions>

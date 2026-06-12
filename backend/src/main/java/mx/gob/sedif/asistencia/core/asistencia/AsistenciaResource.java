@@ -62,6 +62,7 @@ public class AsistenciaResource {
             @RequestBody RegistroAsistenciaRequest requestData,
             HttpServletRequest request
     ) {
+        validarFoto(requestData.fotoBase64());
         asistenciaService.registrarEntrada(requestData.fotoBase64(), request.getRemoteAddr());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(MessageConstants.ENTRADA_REGISTRADA, null));
@@ -76,6 +77,7 @@ public class AsistenciaResource {
             @RequestBody RegistroAsistenciaRequest requestData,
             HttpServletRequest request
     ) {
+        validarFoto(requestData.fotoBase64());
         asistenciaService.registrarSalida(requestData.fotoBase64(), request.getRemoteAddr());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created(MessageConstants.SALIDA_REGISTRADA, null));
@@ -315,6 +317,18 @@ public class AsistenciaResource {
     }
 
     /**
+     * Retorna las fotos (entrada/salida) de una asistencia bajo demanda.
+     * La autorización (dueño o admin del área) se valida en el servicio.
+     * HTTP 200 con {"fotoEntrada": "...", "fotoSalida": "..."} (pueden ser null).
+     */
+    @GetMapping("/{id}/fotos")
+    @PreAuthorize("hasAnyRole('USER', 'SUPERADMIN', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, String>>> obtenerFotos(@PathVariable Long id) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(MessageConstants.REPORTE_OBTENIDO, asistenciaService.obtenerFotos(id)));
+    }
+
+    /**
      * Retorna el historial paginado de asistencias del usuario autenticado.
      * HTTP 200.
      */
@@ -347,6 +361,25 @@ public class AsistenciaResource {
     }
 
     // ── Métodos privados auxiliares ───────────────────────────────────────
+
+    /** Tamaño máximo del string base64 de la foto (~4 MB de imagen decodificada). */
+    private static final int MAX_FOTO_BASE64_LEN = 5_500_000;
+
+    /**
+     * Valida la foto recibida del kiosco: no vacía, dentro del límite de tamaño y
+     * con un prefijo de imagen válido. Evita payloads gigantes (DoS) y datos basura.
+     */
+    private void validarFoto(String fotoBase64) {
+        if (fotoBase64 == null || fotoBase64.isBlank()) {
+            throw new IllegalArgumentException("La foto es obligatoria para registrar asistencia.");
+        }
+        if (fotoBase64.length() > MAX_FOTO_BASE64_LEN) {
+            throw new IllegalArgumentException("La foto excede el tamaño máximo permitido.");
+        }
+        if (!fotoBase64.startsWith("data:image/")) {
+            throw new IllegalArgumentException("Formato de foto inválido.");
+        }
+    }
 
     /**
      * Genera el subtítulo descriptivo del reporte PDF combinando los filtros activos.

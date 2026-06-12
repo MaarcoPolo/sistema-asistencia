@@ -1,0 +1,32 @@
+# ── Override de PRODUCCIÓN / servidor de pruebas ──────────────────────────────
+# Este archivo NO se aplica solo: hay que invocarlo explícitamente junto al base.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Qué hace respecto al docker-compose.yml base:
+#   - Ata todos los puertos publicados a 127.0.0.1 (loopback): los contenedores
+#     no quedan expuestos a la red; solo los alcanza el Nginx del host.
+#   - Libera el puerto 80 del host para que lo use el Nginx del host (reverse
+#     proxy): el frontend pasa de :80 público a :8081 solo-loopback.
+#   - Construye el frontend con VITE_API_URL=/api para que las llamadas vayan al
+#     backend bajo el mismo origen (sin CORS).
+
+services:
+  db:
+    # Solo accesible desde el propio host (no desde la red).
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  backend:
+    # Solo loopback: lo alcanza el Nginx del host, no internet.
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  frontend:
+    # De :80 público a :8081 solo-loopback, para liberar el :80 al Nginx del host.
+    ports:
+      - "127.0.0.1:8081:8080"
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api

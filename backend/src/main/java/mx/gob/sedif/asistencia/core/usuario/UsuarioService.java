@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -79,9 +80,21 @@ public class UsuarioService {
             return new PageImpl<>(List.of(), pageable, 0);
         }
 
-        // Se usa una lambda explícita para invocar el método toRecord(Usuario) 
-        // que ya existe en la línea 240 de tu archivo.
-        return usuariosPage.map(usuario -> this.toRecord(usuario));
+        // Batch load de horarios: una sola query para toda la página en lugar de
+        // una por usuario (PERF-003). El mapa permite mapear cada usuario sin N+1.
+        List<Integer> idsPagina = usuariosPage.getContent().stream()
+                .map(Usuario::getId)
+                .toList();
+
+        Map<Integer, HorarioUsuario> horariosPorUsuario = idsPagina.isEmpty()
+                ? Collections.emptyMap()
+                : horarioUsuarioRepository.findByUsuarioIdIn(idsPagina).stream()
+                    .collect(Collectors.toMap(
+                            hu -> hu.getUsuario().getId(),
+                            hu -> hu,
+                            (a, b) -> a));
+
+        return usuariosPage.map(usuario -> this.toRecord(usuario, horariosPorUsuario.get(usuario.getId())));
     }
 
     /**
@@ -112,6 +125,7 @@ public class UsuarioService {
      *   <li>Usuarios de tipo ADMIN/SUPERADMIN deben especificar contraseña explícita.</li>
      * </ul>
      */
+    @CacheEvict(value = "areasAdmin", allEntries = true)
     @Transactional
     public UsuarioRecord create(UsuarioRecord record) {
         Usuario currentUser = securityUtil.getCurrentUser()
@@ -156,6 +170,7 @@ public class UsuarioService {
      * visibilidad y rol que en {@link #create}.
      * Si {@code password} viene vacío/nulo, la contraseña existente no se modifica.
      */
+    @CacheEvict(value = "areasAdmin", allEntries = true)
     @Transactional
     public UsuarioRecord save(UsuarioRecord record) {
         Usuario currentUser = securityUtil.getCurrentUser()
@@ -334,10 +349,19 @@ public class UsuarioService {
     }
 
     @Transactional
-    public void cambiarMiContrasena(String numeroControl, String nuevaContrasena) {
+    public void cambiarMiContrasena(String numeroControl, String contrasenaActual, String nuevaContrasena) {
         Usuario usuario = usuarioRepository.findByNumeroControl(numeroControl)
             .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-        
+
+        // Si NO es el cambio obligatorio de primer acceso, hay que verificar la
+        // contraseña actual para evitar el secuestro de cuentas con un token robado.
+        if (Boolean.FALSE.equals(usuario.getRequiereCambioPassword())) {
+            if (contrasenaActual == null
+                    || !passwordEncoder.matches(contrasenaActual, usuario.getPassword())) {
+                throw new SecurityException("La contraseña actual es incorrecta.");
+            }
+        }
+
         usuario.setPassword(passwordEncoder.encode(nuevaContrasena));
         usuario.setRequiereCambioPassword(false); // Apagamos la alerta
         usuarioRepository.save(usuario);

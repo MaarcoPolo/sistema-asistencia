@@ -1,6 +1,6 @@
 import { createContext, useState, useContext, useEffect } from 'react'
 import { jwtDecode } from 'jwt-decode'
-import apiClient, { registerLogout } from '../services/api'
+import { registerLogout } from '../services/api'
 import { logoutRemoto } from '../services/authService'
 
 const AuthContext = createContext(null)
@@ -26,7 +26,8 @@ export const AuthProvider = ({ children }) => {
       if (token && userRaw) {
         const decoded = jwtDecode(token)
         if (decoded.exp * 1000 > Date.now()) {
-          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`
+          // El interceptor de request adjunta el token desde localStorage; no
+          // hace falta fijarlo en defaults.headers.
           setAuthData({ token, user: JSON.parse(userRaw) })
         } else {
           // Token expirado localmente; limpiar sin esperar al servidor
@@ -43,7 +44,8 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Almacena el token y los datos del usuario tras un login exitoso.
-   * Configura el header por defecto de axios para peticiones subsecuentes.
+   * El token se persiste en localStorage, que es la única fuente de verdad
+   * leída por el interceptor de request de api.js en cada petición.
    *
    * @param {{ token: string, user: object }} data Respuesta del endpoint de login.
    */
@@ -54,7 +56,6 @@ export const AuthProvider = ({ children }) => {
     }
     localStorage.setItem('token', data.token)
     localStorage.setItem('user', JSON.stringify(data.user))
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
     setAuthData(data)
   }
 
@@ -64,8 +65,7 @@ export const AuthProvider = ({ children }) => {
    */
   const logout = () => {
     logoutRemoto()
-    localStorage.clear()
-    delete apiClient.defaults.headers.common['Authorization']
+    localStorage.clear() // El interceptor dejará de adjuntar el token al limpiarse.
     setAuthData(null)
   }
 

@@ -23,6 +23,7 @@ import static org.springframework.security.config.Customizer.withDefaults;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final mx.gob.sedif.asistencia.security.RateLimitingFilter rateLimitingFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -48,12 +49,26 @@ public class SecurityConfig {
         http
                 .cors(withDefaults())
                 .csrf(csrf -> csrf.disable())
+                .headers(headers -> headers
+                    // Mitiga clickjacking, MIME sniffing y refuerza HTTPS (ID-014).
+                    .frameOptions(frame -> frame.deny())
+                    .contentTypeOptions(withDefaults())
+                    .httpStrictTransportSecurity(hsts -> hsts
+                        .includeSubDomains(true)
+                        .maxAgeInSeconds(31536000))
+                    .contentSecurityPolicy(csp -> csp.policyDirectives(
+                        "default-src 'self'; " +
+                        "img-src 'self' data:; " +
+                        "style-src 'self' 'unsafe-inline'; " +
+                        "frame-ancestors 'none'"))
+                )
                 .authorizeHttpRequests(auth -> auth
                     // Todos los flujos de auth (login, identificar, refresh, logout) son públicos
                     .requestMatchers("/api/auth/**").permitAll()
                     .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

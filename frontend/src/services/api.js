@@ -45,12 +45,19 @@ export const registerLogout = (fn) => {
 }
 
 // ── Interceptor de REQUEST ──────────────────────────────────────────────────
-// Inyecta el access token en cada petición desde localStorage.
+// localStorage es la ÚNICA fuente de verdad del token: se lee en cada petición,
+// justo antes de enviarla. Así nunca importa el orden de los re-renders de React
+// ni el estado de apiClient.defaults.headers, que podían quedar desincronizados y
+// provocar peticiones sin Authorization (403) o con un token viejo.
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
     if (token) {
+      // Adjunta el token vigente en cada request.
       config.headers['Authorization'] = `Bearer ${token}`
+    } else {
+      // Sin token: nos aseguramos de NO enviar un Authorization heredado/obsoleto.
+      delete config.headers['Authorization']
     }
     return config
   },
@@ -119,8 +126,9 @@ apiClient.interceptors.response.use(
         const refreshResponse = await apiClient.post('/auth/refresh')
         const newToken = refreshResponse.data.token
 
+        // localStorage es la fuente de verdad; el interceptor de request leerá
+        // este nuevo token automáticamente en los reintentos.
         localStorage.setItem('token', newToken)
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
 
         retryPendingRequests(newToken)
 

@@ -33,7 +33,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import org.springframework.scheduling.annotation.Scheduled;
 import mx.gob.sedif.asistencia.core.justificacion.AsistenciaJustificacion;
 import mx.gob.sedif.asistencia.core.justificacion.AsistenciaJustificacionRepository;
 import mx.gob.sedif.asistencia.core.justificacion.CatalogoJustificacion;
@@ -250,12 +249,33 @@ public class AsistenciaService {
         return asistenciaRepository.findAll(spec, pageable).map(this::toReporteRecord);
     }
 
+    /** Rango máximo permitido en exportaciones para acotar el uso de memoria (PERF-004). */
+    private static final long MAX_DIAS_EXPORTACION = 92;
+
+    /**
+     * Valida que el rango de fechas no exceda el máximo permitido en exportaciones,
+     * que cargan todos los registros del periodo en memoria sin paginar.
+     */
+    private void validarRangoExportacion(Optional<LocalDate> inicio, Optional<LocalDate> fin) {
+        if (inicio.isPresent() && fin.isPresent()) {
+            long dias = ChronoUnit.DAYS.between(inicio.get(), fin.get());
+            if (dias < 0) {
+                throw new IllegalArgumentException("La fecha de inicio no puede ser posterior a la fecha fin.");
+            }
+            if (dias > MAX_DIAS_EXPORTACION) {
+                throw new IllegalArgumentException(
+                    "El rango no puede exceder " + MAX_DIAS_EXPORTACION + " días (aprox. 3 meses).");
+            }
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<AsistenciaReporteRecord> getReporteData(
         Optional<LocalDate> fechaInicio, Optional<LocalDate> fechaFin,
         Optional<Integer> usuarioId, Optional<Integer> areaId,
         Optional<String> key, Optional<Boolean> soloRetardos
     ) {
+        validarRangoExportacion(fechaInicio, fechaFin);
         Specification<Asistencia> spec = createAsistenciaSpecification(fechaInicio, fechaFin, usuarioId, areaId, key, soloRetardos);
         List<Asistencia> asistencias = asistenciaRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "fecha"));
         return asistencias.stream().map(this::toReporteRecord).collect(Collectors.toList());
@@ -311,10 +331,31 @@ public class AsistenciaService {
     /* ====================================================================================
      * MÓDULO MANUAL PARA RECURSOS HUMANOS
      * ==================================================================================== */
+    /**
+     * Verifica que el administrador autenticado tenga permiso sobre el área del
+     * usuario dueño de la asistencia. SUPERADMIN siempre pasa; ADMIN solo si el
+     * área pertenece a las que gestiona. Previene IDOR en el módulo manual y de
+     * justificaciones (ID-004).
+     *
+     * @param areaUsuarioId Id del área principal del usuario afectado.
+     */
+    private void validarAccesoPorArea(Integer areaUsuarioId) {
+        Usuario currentUser = securityUtil.getCurrentUser()
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+        if (currentUser.getRol() == Rol.ADMIN) {
+            Set<Integer> idsPermitidos = areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (!idsPermitidos.contains(areaUsuarioId)) {
+                throw new SecurityException("No tiene permiso para operar sobre asistencias de esta área.");
+            }
+        }
+    }
+
    @Transactional
     public AsistenciaReporteRecord createManual(AsistenciaManualRecord record) {
         Usuario usuario = usuarioRepository.findById(record.usuarioId())
             .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        validarAccesoPorArea(usuario.getAreaPrincipal().getId());
 
         Asistencia entity = new Asistencia();
         entity.setUsuario(usuario);
@@ -336,6 +377,10 @@ public class AsistenciaService {
         Usuario usuario = usuarioRepository.findById(record.usuarioId())
             .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
+        // Valida tanto el dueño actual del registro como el destino del cambio.
+        validarAccesoPorArea(entity.getUsuario().getAreaPrincipal().getId());
+        validarAccesoPorArea(usuario.getAreaPrincipal().getId());
+
         entity.setUsuario(usuario);
         entity.setFecha(record.fecha());
         entity.setHoraEntrada(record.horaEntrada());
@@ -347,11 +392,11 @@ public class AsistenciaService {
         return toReporteRecord(entity);
     }
 
-    @Transactional 
+    @Transactional
     public void deleteById(Long id) {
-        if (!asistenciaRepository.existsById(id)) {
-            throw new RuntimeException("Registro de asistencia no encontrado para eliminar");
-        }
+        Asistencia entity = asistenciaRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Registro de asistencia no encontrado para eliminar"));
+        validarAccesoPorArea(entity.getUsuario().getAreaPrincipal().getId());
         asistenciaRepository.deleteById(id);
     }
 
@@ -396,12 +441,43 @@ public class AsistenciaService {
                 nombreCompleto.trim(),
                 area.getId(),
                 area.getNombre(),
-                entity.getFotoEntrada(),
-                entity.getFotoSalida(),
+                // Las fotos NO viajan en los listados/reportes para no transferir
+                // megabytes por página (PERF-002/ID-011). Se obtienen on-demand vía
+                // GET /api/asistencia/{id}/fotos al abrir el detalle.
+                null,
+                null,
                 entity.getIpRegistro(),
                 motivo,
                 estatusJustificacion
         );
+    }
+
+    /**
+     * Devuelve las fotos (entrada/salida) de una asistencia bajo demanda.
+     * Valida que el usuario autenticado tenga acceso: el propio dueño del registro,
+     * o un admin con permiso sobre el área del usuario (ID-004/ID-011).
+     *
+     * @param asistenciaId Id del registro de asistencia.
+     * @return Mapa con claves "fotoEntrada" y "fotoSalida" (pueden ser null).
+     */
+    @Transactional(readOnly = true)
+    public Map<String, String> obtenerFotos(Long asistenciaId) {
+        Asistencia asistencia = asistenciaRepository.findById(asistenciaId)
+            .orElseThrow(() -> new RuntimeException("Registro de asistencia no encontrado"));
+
+        Usuario currentUser = securityUtil.getCurrentUser()
+            .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        boolean esDueno = asistencia.getUsuario().getNumeroControl().equals(currentUser.getNumeroControl());
+        if (!esDueno) {
+            // No es su propia asistencia: debe ser admin con permiso sobre el área.
+            validarAccesoPorArea(asistencia.getUsuario().getAreaPrincipal().getId());
+        }
+
+        Map<String, String> fotos = new HashMap<>();
+        fotos.put("fotoEntrada", asistencia.getFotoEntrada());
+        fotos.put("fotoSalida", asistencia.getFotoSalida());
+        return fotos;
     }
 
     @Transactional
@@ -512,7 +588,8 @@ public class AsistenciaService {
      * ==================================================================================== */
     @Transactional(readOnly = true)
     public List<ResumenSancionesRecord> calcularSanciones(LocalDate fechaInicio, LocalDate fechaFin, Optional<Integer> usuarioId, Optional<Integer> areaId) {
-        
+        validarRangoExportacion(Optional.ofNullable(fechaInicio), Optional.ofNullable(fechaFin));
+
         // 1. Traemos TODAS las asistencias del periodo
         Specification<Asistencia> spec = createAsistenciaSpecification(
             Optional.of(fechaInicio), Optional.of(fechaFin),
@@ -592,38 +669,28 @@ public class AsistenciaService {
     private static final int BATCH_SIZE_NOCTURNO = 100;
 
     /**
-     * Job programado que se ejecuta a las 23:50:00 para cerrar las incidencias del día.
+     * Cierra las incidencias del día procesando a los usuarios en lotes de
+     * {@value #BATCH_SIZE_NOCTURNO}. Lo dispara {@link AsistenciaNocturnaJob}, que
+     * vive en otro bean para que la anotación {@link Transactional} de
+     * {@link #procesarLote} se aplique vía proxy (evita el bug de self-invocation).
      *
-     * <p>Procesa los usuarios en lotes de {@value #BATCH_SIZE_NOCTURNO} para evitar
-     * cargar toda la tabla en memoria de una vez. Por cada usuario con horario activo:
+     * <p>Por cada usuario con horario activo:
      * <ul>
      *   <li>Si no registró nada → crea una Falta Total.</li>
      *   <li>Si registró entrada pero no salida → marca Omisión de Salida.</li>
      *   <li>Si registró salida pero no entrada → marca Omisión de Entrada.</li>
      * </ul>
      */
-    @Scheduled(cron = "0 50 23 * * ?")
-    public void procesarIncidenciasNocturnas() {
-        LocalDate hoy = LocalDate.now();
-        int pageNumber = 0;
-        int totalProcesados = 0;
+    /** Tamaño de página usado por el job nocturno para iterar usuarios. */
+    public static int getBatchSizeNocturno() {
+        return BATCH_SIZE_NOCTURNO;
+    }
 
-        log.info("Iniciando cierre de incidencias nocturno para la fecha: {}", hoy);
-
-        org.springframework.data.domain.Page<Usuario> pagina;
-        do {
-            org.springframework.data.domain.Pageable pageRequest =
-                    org.springframework.data.domain.PageRequest.of(pageNumber, BATCH_SIZE_NOCTURNO);
-            pagina = usuarioRepository.findAll(pageRequest);
-
-            // Procesar cada lote en su propia transacción para limitar el tamaño del contexto JPA
-            procesarLote(pagina.getContent(), hoy);
-            totalProcesados += pagina.getNumberOfElements();
-            pageNumber++;
-
-        } while (pagina.hasNext());
-
-        log.info("Cierre nocturno completado: {} usuarios procesados para la fecha {}", totalProcesados, hoy);
+    /** Devuelve una página de usuarios para el procesamiento nocturno por lotes. */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<Usuario> obtenerPaginaUsuarios(int pageNumber) {
+        return usuarioRepository.findAll(
+                org.springframework.data.domain.PageRequest.of(pageNumber, BATCH_SIZE_NOCTURNO));
     }
 
     /**
@@ -635,7 +702,7 @@ public class AsistenciaService {
      * @param fecha    Fecha a procesar (normalmente el día actual).
      */
     @Transactional
-    protected void procesarLote(List<Usuario> usuarios, LocalDate fecha) {
+    public void procesarLote(List<Usuario> usuarios, LocalDate fecha) {
         for (Usuario usuario : usuarios) {
             HorarioDetalle turnoHoy = calcularTurnoParaFecha(usuario, fecha);
             if (turnoHoy == null) continue;
@@ -688,6 +755,12 @@ public class AsistenciaService {
         // 1. Buscamos el registro de asistencia
         Asistencia asistencia = asistenciaRepository.findById(asistenciaId)
             .orElseThrow(() -> new RuntimeException("Registro de asistencia no encontrado"));
+
+        // 1.b Un ADMIN solo puede justificar asistencias de sus áreas (ID-004).
+        //     Para el flujo del empleado (justificarMiAsistencia) el currentUser es
+        //     USER y validarAccesoPorArea no aplica restricción, pero la propiedad
+        //     ya se verificó en justificarMiAsistencia antes de delegar aquí.
+        validarAccesoPorArea(asistencia.getUsuario().getAreaPrincipal().getId());
 
         // 2. Validamos el estado de cualquier justificación previa.
         //    Consultamos por id de asistencia (fuente de verdad) en lugar de la
@@ -800,6 +873,9 @@ public class AsistenciaService {
                 asistenciaJustificacionRepository.findByAsistenciaId(asistenciaId)
                         .orElseThrow(() -> new IllegalStateException(
                                 "Esta incidencia no tiene una justificación registrada."));
+
+        // Un ADMIN solo puede aprobar/rechazar justificaciones de sus áreas (ID-004).
+        validarAccesoPorArea(justificacion.getAsistencia().getUsuario().getAreaPrincipal().getId());
 
         if (justificacion.getEstatus() != EstatusJustificacion.PENDIENTE) {
             throw new IllegalStateException("Esta justificación ya fue procesada y no puede modificarse.");

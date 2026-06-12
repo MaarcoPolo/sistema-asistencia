@@ -22,7 +22,8 @@ export const deleteUsuario = (id) => {
 
 export const getMiPerfil = async () => {
   const response = await apiClient.get('/core/usuario/mi-perfil')
-  return response.data.data
+  // El interceptor ya desenvolvió el ApiResponse.
+  return response.data
 }
 
 export const resetPasswordUsuario = async (id) => {
@@ -30,7 +31,10 @@ export const resetPasswordUsuario = async (id) => {
   return response.data
 }
 
-export const cambiarMiContrasena = async (nuevaContrasena) => {
-  const response = await apiClient.post(`/core/usuario/mi-contrasena`, { nuevaContrasena })
+export const cambiarMiContrasena = async (nuevaContrasena, contrasenaActual) => {
+  const response = await apiClient.post(`/core/usuario/mi-contrasena`, {
+    nuevaContrasena,
+    contrasenaActual,
+  })
   return response.data
 }

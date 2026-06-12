@@ -2,6 +2,7 @@ package mx.gob.sedif.asistencia.security.auth;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +32,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<JwtResponse> login(
-            @RequestBody LoginRequest loginRequest,
+            @Valid @RequestBody LoginRequest loginRequest,
             HttpServletResponse response) {
         return ResponseEntity.ok(authService.login(loginRequest, response));
     }
@@ -42,7 +43,7 @@ public class AuthController {
      */
     @PostMapping("/identificar")
     public ResponseEntity<IdentificarResponse> identificar(
-            @RequestBody IdentificarRequest request,
+            @Valid @RequestBody IdentificarRequest request,
             HttpServletResponse response) {
         return ResponseEntity.ok(authService.identificarUsuario(request, response));
     }

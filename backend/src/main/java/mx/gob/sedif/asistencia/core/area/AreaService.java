@@ -7,6 +7,8 @@ import mx.gob.sedif.asistencia.security.SecurityUtil;
 import mx.gob.sedif.asistencia.util.enums.Estado;
 import mx.gob.sedif.asistencia.util.enums.Rol; 
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class AreaService {
     private final UsuarioRepository usuarioRepository;
     private final SecurityUtil securityUtil; 
 
+    @Cacheable(value = "areasAdmin", key = "#admin.id")
     @Transactional(readOnly = true)
     public Set<Integer> obtenerIdsDeAreasGestionadasPorAdmin(Usuario admin) {
         if (admin == null || admin.getRol() != Rol.ADMIN) {
@@ -114,6 +117,7 @@ public class AreaService {
                 .orElseThrow(() -> new RuntimeException("Área no encontrada con ID: " + id));
     }
 
+    @CacheEvict(value = "areasAdmin", allEntries = true)
     @Transactional
     public AreaRecord create(AreaRecord record) {
         Area entity = new Area();
@@ -122,6 +126,7 @@ public class AreaService {
         return toRecord(entity);
     }
 
+    @CacheEvict(value = "areasAdmin", allEntries = true)
     @Transactional
     public AreaRecord save(AreaRecord record) {
         Area entity = areaRepository.findById(record.id())
@@ -131,6 +136,7 @@ public class AreaService {
         return toRecord(entity);
     }
 
+    @CacheEvict(value = "areasAdmin", allEntries = true)
     @Transactional
     public void deleteById(Integer id) {
         Area entity = areaRepository.findById(id)

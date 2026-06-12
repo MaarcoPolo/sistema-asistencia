@@ -1,18 +1,28 @@
+import { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { CircularProgress, Box } from '@mui/material'
 import { useAuth } from './context/AuthContext'
 import AdminLayout from './components/AdminLayout'
 import ProtectedRoute from './components/ProtectedRoute'
-
-import LoginAdmin from './pages/LoginAdmin'
-import AdminDashboard from './pages/AdminDashboard'
-import AdminUsuarios from './pages/AdminUsuarios'
-import AdminAreas from './pages/AdminAreas'
-import AdminHorarios from './pages/AdminHorarios'
-import IdentificacionUsuario from './pages/IdentificacionUsuario'
-import PaginaAsistencia from './pages/PaginaAsistencia'
 import PublicLayout from './components/PublicLayout'
-import AdminJustificaciones from './pages/AdminJustificaciones'
-import MisAsistencias from './pages/MisAsistencias'
+
+// Carga diferida de las páginas: el kiosco no descarga el código del panel admin
+// y viceversa, reduciendo el bundle inicial (PERF-009).
+const LoginAdmin = lazy(() => import('./pages/LoginAdmin'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const AdminUsuarios = lazy(() => import('./pages/AdminUsuarios'))
+const AdminAreas = lazy(() => import('./pages/AdminAreas'))
+const AdminHorarios = lazy(() => import('./pages/AdminHorarios'))
+const IdentificacionUsuario = lazy(() => import('./pages/IdentificacionUsuario'))
+const PaginaAsistencia = lazy(() => import('./pages/PaginaAsistencia'))
+const AdminJustificaciones = lazy(() => import('./pages/AdminJustificaciones'))
+const MisAsistencias = lazy(() => import('./pages/MisAsistencias'))
+
+const Cargando = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+    <CircularProgress />
+  </Box>
+)
 
 function App() {
   const { authData, isAuthLoading } = useAuth()
@@ -22,6 +32,7 @@ function App() {
   }
 
   return (
+    <Suspense fallback={<Cargando />}>
     <Routes>
       {/* ---------------------------------------------------- */}
       {/* RUTAS PÚBLICAS DE LOGIN                              */}
@@ -155,6 +166,7 @@ function App() {
         }
       />
     </Routes>
+    </Suspense>
   )
 }
 

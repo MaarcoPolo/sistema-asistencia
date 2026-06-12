@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import {
   Modal,
   Box,
@@ -9,6 +10,7 @@ import {
   Button,
   Divider,
 } from '@mui/material'
+import { getFotosAsistencia } from '../services/asistenciaService'
 
 const PhotoDisplay = ({ photo, label }) => (
   <Box sx={{ textAlign: 'center' }}>
@@ -31,6 +33,19 @@ const PhotoDisplay = ({ photo, label }) => (
 )
 
 function AsistenciaViewModal({ open, onClose, record }) {
+  // Las fotos se cargan bajo demanda al abrir el modal (ya no vienen en el listado).
+  const [fotos, setFotos] = useState({ fotoEntrada: null, fotoSalida: null })
+
+  useEffect(() => {
+    if (open && record?.idAsistencia) {
+      getFotosAsistencia(record.idAsistencia)
+        .then((data) => setFotos(data || { fotoEntrada: null, fotoSalida: null }))
+        .catch(() => setFotos({ fotoEntrada: null, fotoSalida: null }))
+    } else {
+      setFotos({ fotoEntrada: null, fotoSalida: null })
+    }
+  }, [open, record?.idAsistencia])
+
   if (!record) {
     return null
   }
@@ -72,13 +87,13 @@ function AsistenciaViewModal({ open, onClose, record }) {
 
             <Grid container spacing={2} justifyContent="center">
               <Grid item xs={6}>
-                <PhotoDisplay photo={record.fotoEntrada} label="Entrada" />
+                <PhotoDisplay photo={fotos.fotoEntrada} label="Entrada" />
                 <Typography variant="h6" sx={{ mt: 1 }}>
                   {formatTime(record.horaEntrada)}
                 </Typography>
               </Grid>
               <Grid item xs={6}>
-                <PhotoDisplay photo={record.fotoSalida} label="Salida" />
+                <PhotoDisplay photo={fotos.fotoSalida} label="Salida" />
                 <Typography variant="h6" sx={{ mt: 1 }}>
                   {formatTime(record.horaSalida)}
                 </Typography>

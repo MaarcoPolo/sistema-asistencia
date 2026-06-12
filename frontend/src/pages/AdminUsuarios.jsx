@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createUsuario, updateUsuario, deleteUsuario, getUsuarios, resetPasswordUsuario } from '../services/usuarioService'
 import UsuarioForm from '../components/UsuarioForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
@@ -33,7 +33,9 @@ function AdminUsuarios() {
     return () => clearTimeout(timerId)
   }, [filtros])
 
-  const columns = [
+  // Memoizado para conservar la misma referencia entre renders: evita que
+  // DynamicTable re-ejecute su carga de datos en cada render del padre (PERF-013).
+  const columns = useMemo(() => [
     { id: 'numeroControl', label: 'No. Control' },
     { id: 'nombreCompleto', label: 'Nombre Completo', sortable: false },
     { id: 'rol', label: 'Rol' },
@@ -43,7 +45,7 @@ function AdminUsuarios() {
       label: 'Área Principal',
     },
     { id: 'estatus', label: 'Estatus' },
-  ]
+  ], [])
 
   useEffect(() => {
     getAreasForSelect().then(res => {

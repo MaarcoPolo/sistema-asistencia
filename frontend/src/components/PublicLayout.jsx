@@ -18,11 +18,16 @@ function PublicLayout({ children }) {
         position="static"
         sx={{ backgroundColor: 'white', color: '#707070' }}>
         <Toolbar sx={{ justifyContent: 'center', gap: 2 }}>
-          <img
-            src="/assets/familias-dif-rosa.png"
-            alt="Logo Sistema Estatal DIF"
-            style={{ height: '45px', marginRight: '16px' }}
-          />
+          {/* WebP con fallback a PNG: el navegador usa WebP si el archivo existe
+              y soporta el formato; si no, cae al PNG sin romperse (PERF-014). */}
+          <picture>
+            <source srcSet="/assets/familias-dif-rosa.webp" type="image/webp" />
+            <img
+              src="/assets/familias-dif-rosa.png"
+              alt="Logo Sistema Estatal DIF"
+              style={{ height: '45px', marginRight: '16px' }}
+            />
+          </picture>
           <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
             SISTEMA ESTATAL DIF
           </Typography>

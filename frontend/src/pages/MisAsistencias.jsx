@@ -177,6 +177,7 @@ function MisAsistencias() {
         open={passwordModalOpen}
         onClose={() => setPasswordModalOpen(false)}
         onSuccess={cargarPerfil} // Quita la alerta roja automáticamente
+        esPrimerAcceso={perfil?.requiereCambioPassword} // Oculta el campo de contraseña actual
       />
     </Container>
   )

@@ -32,7 +32,8 @@ export const registrarSalida = async (fotoBase64) => {
 }
 export const getEstadoAsistenciaDiario = async () => {
   const response = await apiClient.get('/asistencia/estado-diario')
-  return response.data.data
+  // El interceptor de api.js ya desenvuelve el ApiResponse: response.data es el payload.
+  return response.data
 }
 // Función para exportar a EXCEL
 export const exportarAsistenciasExcel = async (params) => {
@@ -107,7 +108,8 @@ export const subirExcelMasivo = async (file) => {
       'Content-Type': 'multipart/form-data',
     },
   })
-  return response.data.data
+  // El interceptor ya desenvolvió el ApiResponse.
+  return response.data
 }
 
 export const getResumenRetardos = async (fechaInicio, fechaFin) => {
@@ -128,7 +130,8 @@ export const getResumenSanciones = async (params) => {
   const response = await apiClient.get('/asistencia/resumen-sanciones', {
     params,
   })
-  return response.data.data
+  // El interceptor ya desenvolvió el ApiResponse.
+  return response.data
 }
 
 export const exportarSancionesPdf = async (params) => {
@@ -192,5 +195,12 @@ export const aprobarJustificacion = async (id) => {
 // Rechazar una justificación pendiente
 export const rechazarJustificacion = async (id) => {
   const response = await apiClient.post(`/asistencia/${id}/justificacion/rechazar`)
+  return response.data
+}
+
+// Obtiene las fotos (entrada/salida) de una asistencia bajo demanda.
+// Las fotos ya no viajan en los listados para no transferir megabytes por página.
+export const getFotosAsistencia = async (id) => {
+  const response = await apiClient.get(`/asistencia/${id}/fotos`)
   return response.data
 }

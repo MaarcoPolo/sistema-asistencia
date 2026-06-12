@@ -44,14 +44,18 @@ function AdminLayout({ children }) {
           justifyContent: 'center',
           px: [1],
         }}>
-        <img
-          src="/assets/familias-dif-rosa.png"
-          alt="Logo DIF"
-          style={{
-            height: '35px', // Un poco más pequeño para que respire en el sidebar
-            margin: 'auto',
-          }}
-        />
+        {/* WebP con fallback a PNG (PERF-014). */}
+        <picture>
+          <source srcSet="/assets/familias-dif-rosa.webp" type="image/webp" />
+          <img
+            src="/assets/familias-dif-rosa.png"
+            alt="Logo DIF"
+            style={{
+              height: '35px', // Un poco más pequeño para que respire en el sidebar
+              margin: 'auto',
+            }}
+          />
+        </picture>
       </Toolbar>
       <List>
         {menuItems.map((item) => (

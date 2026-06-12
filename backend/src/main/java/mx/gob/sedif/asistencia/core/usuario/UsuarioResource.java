@@ -140,10 +140,14 @@ public class UsuarioResource {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         String nuevaContrasena = request.get("nuevaContrasena");
+        String contrasenaActual = request.get("contrasenaActual");
         if (nuevaContrasena == null || nuevaContrasena.isBlank()) {
             throw new IllegalArgumentException("La nueva contraseña no puede estar vacía.");
         }
-        usuarioService.cambiarMiContrasena(userDetails.getUsername(), nuevaContrasena);
+        if (nuevaContrasena.length() < 8) {
+            throw new IllegalArgumentException("La nueva contraseña debe tener al menos 8 caracteres.");
+        }
+        usuarioService.cambiarMiContrasena(userDetails.getUsername(), contrasenaActual, nuevaContrasena);
         return ResponseEntity.ok(ApiResponse.ok(MessageConstants.PASSWORD_CAMBIADA));
     }
 }

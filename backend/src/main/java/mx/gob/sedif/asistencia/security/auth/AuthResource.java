@@ -3,6 +3,8 @@ package mx.gob.sedif.asistencia.security.auth;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import mx.gob.sedif.asistencia.core.usuario.Usuario;
@@ -17,6 +19,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,6 +50,7 @@ public class AuthResource {
      * @param response     HttpServletResponse para agregar la cookie de refresh.
      * @return JwtResponse con el access token y datos básicos del usuario.
      */
+    @Transactional
     public JwtResponse login(LoginRequest loginRequest, HttpServletResponse response) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -85,6 +89,7 @@ public class AuthResource {
      * @param response           HttpServletResponse para la cookie de refresh.
      * @return IdentificarResponse con el access token y datos básicos.
      */
+    @Transactional
     public IdentificarResponse identificarUsuario(IdentificarRequest identificarRequest,
                                                   HttpServletResponse response) {
         Usuario usuario = usuarioRepository.findByNumeroControl(identificarRequest.numeroControl())
@@ -117,6 +122,7 @@ public class AuthResource {
      * @param response HttpServletResponse para rotar la cookie de refresh.
      * @return Nuevo access token en un JwtResponse.
      */
+    @Transactional
     public JwtResponse refreshAccessToken(HttpServletRequest request, HttpServletResponse response) {
         String refreshToken = extractRefreshCookie(request);
 
@@ -156,12 +162,14 @@ public class AuthResource {
      * @param response HttpServletResponse para eliminar la cookie.
      */
     public void logout(HttpServletResponse response) {
-        Cookie cookie = new Cookie(REFRESH_COOKIE_NAME, "");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        cookie.setPath("/api/auth");
-        cookie.setMaxAge(0);
-        response.addCookie(cookie);
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/api/auth")
+                .maxAge(0)
+                .sameSite("Strict")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     // ── Métodos privados ──────────────────────────────────────────────────────
@@ -171,12 +179,14 @@ public class AuthResource {
      * SameSite=Strict evita envíos en requests cross-site.
      */
     private void addRefreshCookie(HttpServletResponse response, String refreshToken) {
-        Cookie cookie = new Cookie(REFRESH_COOKIE_NAME, refreshToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);           // Solo HTTPS en producción
-        cookie.setPath("/api/auth");      // Solo se envía a endpoints de auth
-        cookie.setMaxAge(REFRESH_COOKIE_MAX_AGE);
-        response.addCookie(cookie);
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, refreshToken)
+                .httpOnly(true)
+                .secure(true)             // Solo HTTPS en producción
+                .path("/api/auth")        // Solo se envía a endpoints de auth
+                .maxAge(REFRESH_COOKIE_MAX_AGE)
+                .sameSite("Strict")       // Evita envío en requests cross-site (CSRF)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     /**
