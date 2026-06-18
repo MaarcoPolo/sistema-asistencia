@@ -5,10 +5,16 @@ import mx.gob.sedif.asistencia.exception.ApiResponse;
 import mx.gob.sedif.asistencia.exception.MessageConstants;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Controller REST para la gestión de horarios de trabajo.
@@ -40,6 +46,21 @@ public class HorarioResource {
     ) {
         return ResponseEntity.ok(
                 ApiResponse.ok(MessageConstants.HORARIOS_OBTENIDOS, horarioService.getAll(key, pageable)));
+    }
+
+    /**
+     * Genera y descarga el listado de horarios en formato Excel (.xlsx).
+     * HTTP 200 con Content-Disposition: attachment.
+     */
+    @GetMapping("/exportar/excel")
+    public ResponseEntity<byte[]> exportarExcel() throws IOException {
+        byte[] file = horarioService.exportarExcel();
+        String filename = "horarios_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
     }
 
     /**

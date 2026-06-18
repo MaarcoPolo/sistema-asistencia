@@ -6,6 +6,7 @@ import mx.gob.sedif.asistencia.core.area.Area;
 import mx.gob.sedif.asistencia.core.area.AreaRepository;
 import mx.gob.sedif.asistencia.core.area.AreaService;
 import mx.gob.sedif.asistencia.security.SecurityUtil;
+import mx.gob.sedif.asistencia.util.ExportExcelService;
 import mx.gob.sedif.asistencia.util.enums.Estado;
 import mx.gob.sedif.asistencia.util.enums.Rol;
 import mx.gob.sedif.asistencia.core.horario.Horario;
@@ -14,16 +15,26 @@ import mx.gob.sedif.asistencia.core.horario.HorarioUsuario;
 import mx.gob.sedif.asistencia.core.horario.HorarioUsuarioId;
 import mx.gob.sedif.asistencia.core.horario.HorarioUsuarioRepository;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -45,6 +56,7 @@ public class UsuarioService {
     private final AreaService areaService;
     private final HorarioRepository horarioRepository;
     private final HorarioUsuarioRepository horarioUsuarioRepository;
+    private final ExportExcelService exportExcelService;
 
     /**
      * Retorna una página de usuarios filtrados por nombre, aplicando
@@ -95,6 +107,202 @@ public class UsuarioService {
                             (a, b) -> a));
 
         return usuariosPage.map(usuario -> this.toRecord(usuario, horariosPorUsuario.get(usuario.getId())));
+    }
+
+    /**
+     * Genera el Excel de usuarios activos según los filtros recibidos. Reutiliza
+     * {@link #getAll} (sin paginar) para respetar los permisos por rol y el
+     * filtrado por número de control / área. Solo incluye usuarios ACTIVOS.
+     *
+     * <p>Columnas: No. Control, Nombre completo, Área, Horario.
+     *
+     * @param key           búsqueda por nombre (opcional)
+     * @param numeroControl número de control exacto/parcial (opcional)
+     * @param areaId        área a filtrar (opcional)
+     */
+    @Transactional(readOnly = true)
+    public byte[] exportarExcel(String key, String numeroControl, Integer areaId) throws IOException {
+        Pageable sinPaginar = Pageable.unpaged(Sort.by(Sort.Direction.ASC, "numeroControl"));
+
+        List<UsuarioRecord> usuarios = getAll(key, numeroControl, areaId, sinPaginar).getContent().stream()
+                .filter(u -> u.estatus() == Estado.ACTIVE)
+                .collect(Collectors.toList());
+
+        String[] headers = { "No. Control", "Nombre completo", "Área", "Horario" };
+        List<Function<UsuarioRecord, String>> extractores = List.of(
+                UsuarioRecord::numeroControl,
+                UsuarioRecord::nombreCompleto,
+                UsuarioRecord::nombreAreaPrincipal,
+                u -> u.nombreHorarioAsignado() != null ? u.nombreHorarioAsignado() : "Sin horario asignado"
+        );
+
+        return exportExcelService.generar("Usuarios", headers, usuarios, extractores);
+    }
+
+    /**
+     * Procesa una carga masiva de usuarios desde un archivo Excel.
+     *
+     * <p>Columnas esperadas (fila 1 = encabezados, los datos inician en la fila 2):
+     * <ol start="0">
+     *   <li>numero_control</li>
+     *   <li>nombre</li>
+     *   <li>apellido_paterno</li>
+     *   <li>apellido_materno (opcional)</li>
+     *   <li>area_id</li>
+     *   <li>rol (debe ser USER)</li>
+     * </ol>
+     *
+     * <p>Reglas: todos quedan con estatus ACTIVE; la contraseña se genera
+     * automáticamente (numeroControl + "-DIF") y se exige cambio al primer
+     * ingreso. Solo se permite el rol USER en la carga masiva. Cada fila se
+     * valida de forma independiente: si una falla, se reporta con su número de
+     * fila y el resto continúa. Si un ADMIN realiza la carga, solo puede dar de
+     * alta usuarios en las áreas que gestiona.
+     *
+     * @return mapa con: procesados (int), errores (int), detalleErrores (List&lt;String&gt;)
+     */
+    @CacheEvict(value = "areasAdmin", allEntries = true)
+    @Transactional
+    public Map<String, Object> procesarCargaMasivaUsuarios(MultipartFile file) throws IOException {
+        Usuario currentUser = securityUtil.getCurrentUser()
+                .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        // Si es ADMIN, solo puede cargar usuarios en sus áreas gestionadas.
+        Set<Integer> idsAreasPermitidas = currentUser.getRol() == Rol.ADMIN
+                ? areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser)
+                : null; // null => SUPERADMIN, sin restricción
+
+        int procesados = 0;
+        int errores = 0;
+        List<String> detalleErrores = new ArrayList<>();
+
+        // Detecta números de control repetidos dentro del propio archivo.
+        Set<String> numerosControlEnArchivo = new HashSet<>();
+
+        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+
+            for (Row row : sheet) {
+                if (row.getRowNum() == 0) continue; // saltar encabezados
+
+                int numeroFila = row.getRowNum() + 1; // fila tal como la ve el usuario en Excel
+
+                // Saltar filas totalmente vacías sin contarlas como error.
+                if (filaVacia(row)) continue;
+
+                try {
+                    String numeroControl = getCellValueAsString(row.getCell(0));
+                    String nombre = getCellValueAsString(row.getCell(1));
+                    String apellidoPaterno = getCellValueAsString(row.getCell(2));
+                    String apellidoMaterno = getCellValueAsString(row.getCell(3));
+                    String areaIdTexto = getCellValueAsString(row.getCell(4));
+                    String rolTexto = getCellValueAsString(row.getCell(5)).toUpperCase();
+
+                    // --- Validaciones de campos obligatorios ---
+                    if (numeroControl.isBlank()) {
+                        throw new IllegalArgumentException("El número de control es obligatorio.");
+                    }
+                    if (nombre.isBlank()) {
+                        throw new IllegalArgumentException("El nombre es obligatorio.");
+                    }
+                    if (apellidoPaterno.isBlank()) {
+                        throw new IllegalArgumentException("El apellido paterno es obligatorio.");
+                    }
+
+                    // --- Rol: solo USER en carga masiva ---
+                    if (rolTexto.isBlank()) {
+                        throw new IllegalArgumentException("El rol es obligatorio (debe ser USER).");
+                    }
+                    Rol rol;
+                    try {
+                        rol = Rol.valueOf(rolTexto);
+                    } catch (IllegalArgumentException ex) {
+                        throw new IllegalArgumentException("Rol inválido '" + rolTexto + "'. Solo se permite USER.");
+                    }
+                    if (rol != Rol.USER) {
+                        throw new IllegalArgumentException("Solo se permite el rol USER en la carga masiva. "
+                                + "Los administradores se crean de forma individual.");
+                    }
+
+                    // --- Área ---
+                    if (areaIdTexto.isBlank()) {
+                        throw new IllegalArgumentException("El area_id es obligatorio.");
+                    }
+                    Integer areaId;
+                    try {
+                        areaId = Integer.valueOf(areaIdTexto);
+                    } catch (NumberFormatException ex) {
+                        throw new IllegalArgumentException("El area_id '" + areaIdTexto + "' no es un número válido.");
+                    }
+                    Area area = areaRepository.findById(areaId)
+                            .orElseThrow(() -> new IllegalArgumentException("No existe un área con id " + areaId + "."));
+                    if (area.getEstatus() != Estado.ACTIVE) {
+                        throw new IllegalArgumentException("El área con id " + areaId + " no está activa.");
+                    }
+                    if (idsAreasPermitidas != null && !idsAreasPermitidas.contains(areaId)) {
+                        throw new SecurityException("No tiene permisos para dar de alta usuarios en el área con id " + areaId + ".");
+                    }
+
+                    // --- Duplicados: dentro del archivo y contra la base de datos ---
+                    if (!numerosControlEnArchivo.add(numeroControl)) {
+                        throw new IllegalArgumentException("El número de control '" + numeroControl
+                                + "' está repetido dentro del archivo.");
+                    }
+                    if (usuarioRepository.findByNumeroControl(numeroControl).isPresent()) {
+                        throw new IllegalArgumentException("El número de control '" + numeroControl
+                                + "' ya existe en el sistema.");
+                    }
+
+                    // --- Alta del usuario ---
+                    Usuario usuario = new Usuario();
+                    usuario.setNumeroControl(numeroControl);
+                    usuario.setNombre(nombre);
+                    usuario.setApellidoPaterno(apellidoPaterno);
+                    usuario.setApellidoMaterno(apellidoMaterno.isBlank() ? null : apellidoMaterno);
+                    usuario.setRol(Rol.USER);
+                    usuario.setEstatus(Estado.ACTIVE);
+                    usuario.setAreaPrincipal(area);
+                    usuario.setAreasGestionadas(new HashSet<>());
+                    // Contraseña inicial predeterminada; se obliga a cambiarla en el primer login.
+                    usuario.setPassword(passwordEncoder.encode(numeroControl + "-DIF"));
+                    usuario.setRequiereCambioPassword(true);
+
+                    usuarioRepository.save(usuario);
+                    procesados++;
+
+                } catch (Exception e) {
+                    errores++;
+                    detalleErrores.add("Fila " + numeroFila + ": " + e.getMessage());
+                }
+            }
+        }
+
+        Map<String, Object> resultado = new HashMap<>();
+        resultado.put("procesados", procesados);
+        resultado.put("errores", errores);
+        resultado.put("detalleErrores", detalleErrores);
+        return resultado;
+    }
+
+    /** True si todas las celdas relevantes de la fila están vacías. */
+    private boolean filaVacia(Row row) {
+        for (int i = 0; i <= 5; i++) {
+            if (!getCellValueAsString(row.getCell(i)).isBlank()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Lee una celda como texto, tolerando celdas numéricas y nulas. */
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return "";
+        return switch (cell.getCellType()) {
+            case STRING -> cell.getStringCellValue().trim();
+            case NUMERIC -> String.valueOf((long) cell.getNumericCellValue());
+            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            default -> "";
+        };
     }
 
     /**

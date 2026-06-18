@@ -4,6 +4,7 @@ import {
   createHorario,
   updateHorario,
   deleteHorario,
+  exportarHorariosExcel,
 } from '../services/horarioService'
 import HorarioForm from '../components/HorarioForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
@@ -13,6 +14,7 @@ import { Box, Button, Typography, IconButton, Chip, Stack } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import FileDownloadIcon from '@mui/icons-material/FileDownload'
 
 // Diccionario para convertir el número del día a texto corto
 const mapaDias = {
@@ -32,7 +34,20 @@ function AdminHorarios() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
   const [tableKey, setTableKey] = useState(0)
+  const [exportando, setExportando] = useState(false)
   const { showNotification } = useNotification()
+
+  const handleExportar = async () => {
+    setExportando(true)
+    try {
+      await exportarHorariosExcel()
+    } catch (error) {
+      console.error('Error al exportar horarios:', error)
+      showNotification('No se pudo exportar el archivo', 'error')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   // Definición de las columnas de la tabla
   const columns = [
@@ -175,12 +190,21 @@ function AdminHorarios() {
         <Typography variant="h4" component="h1">
           Gestión de Horarios
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenModal()}>
-          Crear Horario
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleExportar}
+            disabled={exportando}>
+            {exportando ? 'Exportando...' : 'Exportar Excel'}
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenModal()}>
+            Crear Horario
+          </Button>
+        </Stack>
       </Box>
 
       <DynamicTable

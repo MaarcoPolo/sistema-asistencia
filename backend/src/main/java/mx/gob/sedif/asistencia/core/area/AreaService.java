@@ -1,11 +1,12 @@
 package mx.gob.sedif.asistencia.core.area;
 
 import lombok.RequiredArgsConstructor;
-import mx.gob.sedif.asistencia.core.usuario.Usuario; 
+import mx.gob.sedif.asistencia.core.usuario.Usuario;
 import mx.gob.sedif.asistencia.core.usuario.UsuarioRepository;
-import mx.gob.sedif.asistencia.security.SecurityUtil; 
+import mx.gob.sedif.asistencia.security.SecurityUtil;
+import mx.gob.sedif.asistencia.util.ExportExcelService;
 import mx.gob.sedif.asistencia.util.enums.Estado;
-import mx.gob.sedif.asistencia.util.enums.Rol; 
+import mx.gob.sedif.asistencia.util.enums.Rol;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -14,12 +15,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
-import java.util.Set; 
+import java.util.Set;
 import java.util.LinkedList;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,7 +30,8 @@ import java.util.stream.Collectors;
 public class AreaService {
     private final AreaRepository areaRepository;
     private final UsuarioRepository usuarioRepository;
-    private final SecurityUtil securityUtil; 
+    private final SecurityUtil securityUtil;
+    private final ExportExcelService exportExcelService;
 
     @Cacheable(value = "areasAdmin", key = "#admin.id")
     @Transactional(readOnly = true)
@@ -115,6 +119,40 @@ public class AreaService {
         return areaRepository.findById(id)
                 .map(this::toRecord)
                 .orElseThrow(() -> new RuntimeException("Área no encontrada con ID: " + id));
+    }
+
+    /**
+     * Genera el Excel de todas las áreas activas que el usuario actual puede ver.
+     * Respeta los permisos por rol (SUPERADMIN ve todas, ADMIN solo las suyas).
+     */
+    @Transactional(readOnly = true)
+    public byte[] exportarExcel() throws IOException {
+        Usuario currentUser = securityUtil.getCurrentUser()
+                .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
+
+        List<Area> areas = new ArrayList<>();
+        if (currentUser.getRol() == Rol.SUPERADMIN) {
+            areas = areaRepository.findByEstatus(Estado.ACTIVE);
+        } else if (currentUser.getRol() == Rol.ADMIN) {
+            Set<Integer> idsPermitidos = this.obtenerIdsDeAreasGestionadasPorAdmin(currentUser);
+            if (!idsPermitidos.isEmpty()) {
+                areas = areaRepository.findAllById(idsPermitidos);
+            }
+        }
+
+        List<Area> activas = areas.stream()
+                .filter(area -> area.getEstatus() == Estado.ACTIVE)
+                .distinct()
+                .sorted((a, b) -> a.getNombre().compareToIgnoreCase(b.getNombre()))
+                .collect(Collectors.toList());
+
+        String[] headers = { "Clave", "Nombre del área" };
+        List<Function<Area, String>> extractores = List.of(
+                Area::getClave,
+                Area::getNombre
+        );
+
+        return exportExcelService.generar("Áreas", headers, activas, extractores);
     }
 
     @CacheEvict(value = "areasAdmin", allEntries = true)

@@ -7,13 +7,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 /**
@@ -50,6 +56,46 @@ public class UsuarioResource {
     ) {
         Page<UsuarioRecord> resultado = usuarioService.getAll(key, numeroControl, areaId, pageable);
         return ResponseEntity.ok(ApiResponse.ok(MessageConstants.USUARIOS_OBTENIDOS, resultado));
+    }
+
+    /**
+     * Genera y descarga el listado de usuarios activos en formato Excel (.xlsx),
+     * aplicando los mismos filtros que la lista (número de control y/o área).
+     * Sin filtros, exporta todos los usuarios activos visibles para el rol.
+     * HTTP 200 con Content-Disposition: attachment.
+     */
+    @GetMapping("/exportar/excel")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
+    public ResponseEntity<byte[]> exportarExcel(
+            @RequestParam(required = false, defaultValue = "") String key,
+            @RequestParam(required = false) String numeroControl,
+            @RequestParam(required = false) Integer areaId
+    ) throws IOException {
+        byte[] file = usuarioService.exportarExcel(key, numeroControl, areaId);
+        String filename = "usuarios_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
+    }
+
+    /**
+     * Carga masiva de usuarios desde un archivo Excel. Todos quedan con estatus
+     * ACTIVE y rol USER; la contraseña se genera automáticamente. Devuelve un
+     * resumen con el total de procesados, de errores y el detalle fila por fila.
+     * HTTP 200 con el resumen dentro del wrapper ApiResponse.
+     */
+    @PostMapping("/carga-masiva")
+    @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> cargaMasiva(
+            @RequestParam("file") MultipartFile file
+    ) throws IOException {
+        Map<String, Object> resultado = usuarioService.procesarCargaMasivaUsuarios(file);
+        int procesados = (int) resultado.get("procesados");
+        int errores = (int) resultado.get("errores");
+        String mensaje = String.format(MessageConstants.EXCEL_PROCESADO, procesados, errores);
+        return ResponseEntity.ok(ApiResponse.ok(mensaje, resultado));
     }
 
     /**

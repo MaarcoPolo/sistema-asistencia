@@ -1,12 +1,19 @@
 package mx.gob.sedif.asistencia.core.horario;
 
 import lombok.RequiredArgsConstructor;
+import mx.gob.sedif.asistencia.util.ExportExcelService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -14,6 +21,59 @@ import java.util.stream.Collectors;
 public class HorarioService {
 
     private final HorarioRepository horarioRepository;
+    private final ExportExcelService exportExcelService;
+
+    private static final DateTimeFormatter HORA_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
+    /** Nombre del día a partir del número (1=Lunes ... 7=Domingo). */
+    private static String nombreDia(Integer dia) {
+        if (dia == null) return "";
+        return switch (dia) {
+            case 1 -> "Lunes";
+            case 2 -> "Martes";
+            case 3 -> "Miércoles";
+            case 4 -> "Jueves";
+            case 5 -> "Viernes";
+            case 6 -> "Sábado";
+            case 7 -> "Domingo";
+            default -> "Día " + dia;
+        };
+    }
+
+    private static String formatHora(LocalTime hora) {
+        return hora != null ? hora.format(HORA_FMT) : "";
+    }
+
+    /** Fila aplanada del Excel de horarios: un renglón por cada día del horario. */
+    private record FilaHorario(String horario, Integer dia, LocalTime entrada, LocalTime salida) {}
+
+    /**
+     * Genera el Excel de todos los horarios registrados. Cada día de cada
+     * horario es una fila, con el nombre del horario repetido para que el
+     * usuario lea fácilmente "qué días tiene y a qué hora".
+     */
+    @Transactional(readOnly = true)
+    public byte[] exportarExcel() throws IOException {
+        List<Horario> horarios = horarioRepository.findAll();
+
+        List<FilaHorario> filas = new ArrayList<>();
+        horarios.stream()
+                .sorted(Comparator.comparing(Horario::getNombre, String.CASE_INSENSITIVE_ORDER))
+                .forEach(h -> h.getDetalles().stream()
+                        .sorted(Comparator.comparing(HorarioDetalle::getDia))
+                        .forEach(d -> filas.add(new FilaHorario(
+                                h.getNombre(), d.getDia(), d.getHoraEntrada(), d.getHoraSalida()))));
+
+        String[] headers = { "Horario", "Día", "Hora de entrada", "Hora de salida" };
+        List<Function<FilaHorario, String>> extractores = List.of(
+                FilaHorario::horario,
+                f -> nombreDia(f.dia()),
+                f -> formatHora(f.entrada()),
+                f -> formatHora(f.salida())
+        );
+
+        return exportExcelService.generar("Horarios", headers, filas, extractores);
+    }
 
     @Transactional(readOnly = true)
     public Page<HorarioRecord> getAll(String key, Pageable pageable) {

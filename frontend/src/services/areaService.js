@@ -1,8 +1,14 @@
 import apiClient from './api'
+import { descargarArchivo } from './downloadHelper'
 
 // Obtener la lista de áreas para un selector (esta ya la teníamos)
 export const getAreasForSelect = () => {
   return apiClient.get('/core/area/select-list')
+}
+
+// Exportar todas las áreas activas a Excel
+export const exportarAreasExcel = () => {
+  return descargarArchivo('/core/area/exportar/excel', {}, 'areas.xlsx')
 }
 
 // Obtener la lista paginada de áreas

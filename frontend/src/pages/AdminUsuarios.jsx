@@ -2,13 +2,17 @@ import { useState, useEffect, useMemo } from 'react'
 import { createUsuario, updateUsuario, deleteUsuario, getUsuarios, resetPasswordUsuario } from '../services/usuarioService'
 import UsuarioForm from '../components/UsuarioForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
+import ExportarUsuariosModal from '../components/ExportarUsuariosModal'
+import CargaMasivaUsuariosModal from '../components/CargaMasivaUsuariosModal'
 import { useNotification } from '../context/NotificationContext'
 import DynamicTable from '../components/DynamicTable'
-import { Box, Button, Typography, IconButton, Tooltip, TextField, Autocomplete, Grid, Paper } from '@mui/material'
+import { Box, Button, Typography, IconButton, Tooltip, TextField, Autocomplete, Grid, Paper, Stack } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import FileDownloadIcon from '@mui/icons-material/FileDownload'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { getAreasForSelect } from '../services/areaService'
 
 function AdminUsuarios() {
@@ -18,6 +22,8 @@ function AdminUsuarios() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
   const [tableKey, setTableKey] = useState(0)
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [cargaMasivaOpen, setCargaMasivaOpen] = useState(false)
   const { showNotification } = useNotification()
   const [areas, setAreas] = useState([])
   // `filtros` es lo que escribe el usuario; `filtrosAplicados` es lo que
@@ -161,12 +167,26 @@ function AdminUsuarios() {
         <Typography variant="h4" component="h1">
           Gestión de Usuarios
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenModal()}>
-          Crear Usuario
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<UploadFileIcon />}
+            onClick={() => setCargaMasivaOpen(true)}>
+            Carga Masiva
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={() => setExportModalOpen(true)}>
+            Exportar Excel
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenModal()}>
+            Crear Usuario
+          </Button>
+        </Stack>
       </Box>
       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
@@ -222,6 +242,16 @@ function AdminUsuarios() {
         onConfirm={confirmAction}
         title={confirmData?.title}
         message={confirmData?.message}
+      />
+      <ExportarUsuariosModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        areas={areas}
+      />
+      <CargaMasivaUsuariosModal
+        open={cargaMasivaOpen}
+        onClose={() => setCargaMasivaOpen(false)}
+        onSuccess={() => setTableKey((prev) => prev + 1)}
       />
     </Box>
   )

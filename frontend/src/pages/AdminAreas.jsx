@@ -4,15 +4,17 @@ import {
   createArea,
   updateArea,
   deleteArea,
+  exportarAreasExcel,
 } from '../services/areaService'
 import AreaForm from '../components/AreaForm'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useNotification } from '../context/NotificationContext'
 import DynamicTable from '../components/DynamicTable'
-import { Box, Button, Typography, IconButton } from '@mui/material'
+import { Box, Button, Typography, IconButton, Stack } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import FileDownloadIcon from '@mui/icons-material/FileDownload'
 
 function AdminAreas() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -21,7 +23,20 @@ function AdminAreas() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
   const [tableKey, setTableKey] = useState(0)
+  const [exportando, setExportando] = useState(false)
   const { showNotification } = useNotification()
+
+  const handleExportar = async () => {
+    setExportando(true)
+    try {
+      await exportarAreasExcel()
+    } catch (error) {
+      console.error('Error al exportar áreas:', error)
+      showNotification('No se pudo exportar el archivo', 'error')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   const columns = [
     { id: 'clave', label: 'Clave' },
@@ -114,12 +129,21 @@ function AdminAreas() {
         <Typography variant="h4" component="h1">
           Gestión de Áreas
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenModal()}>
-          Crear Área
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleExportar}
+            disabled={exportando}>
+            {exportando ? 'Exportando...' : 'Exportar Excel'}
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenModal()}>
+            Crear Área
+          </Button>
+        </Stack>
       </Box>
 
       <DynamicTable

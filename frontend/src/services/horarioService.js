@@ -1,7 +1,13 @@
 import apiClient from './api'
+import { descargarArchivo } from './downloadHelper'
 
 export const getHorarios = (params) => {
   return apiClient.get('/core/horario', { params })
+}
+
+// Exportar todos los horarios a Excel
+export const exportarHorariosExcel = () => {
+  return descargarArchivo('/core/horario/exportar/excel', {}, 'horarios.xlsx')
 }
 
 export const createHorario = (horarioData) => {

@@ -1,8 +1,14 @@
 import apiClient from './api'
+import { descargarArchivo } from './downloadHelper'
 
 // Endpoints para el Catálogo (CRUD)
 export const getJustificaciones = (params) => {
   return apiClient.get('/core/justificacion', { params })
+}
+
+// Exportar el catálogo de justificaciones a Excel
+export const exportarJustificacionesExcel = () => {
+  return descargarArchivo('/core/justificacion/exportar/excel', {}, 'justificaciones.xlsx')
 }
 
 export const getJustificacionesSelect = async () => {

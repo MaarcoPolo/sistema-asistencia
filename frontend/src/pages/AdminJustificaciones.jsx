@@ -13,10 +13,12 @@ import {
   DialogActions,
   FormControlLabel,
   Switch,
+  Stack,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import FileDownloadIcon from '@mui/icons-material/FileDownload'
 
 import DynamicTable from '../components/DynamicTable'
 import ConfirmationDialog from '../components/ConfirmationDialog'
@@ -26,6 +28,7 @@ import {
   createJustificacion,
   updateJustificacion,
   deleteJustificacion,
+  exportarJustificacionesExcel,
 } from '../services/justificacionService'
 
 function AdminJustificaciones() {
@@ -44,7 +47,21 @@ function AdminJustificaciones() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmData, setConfirmData] = useState(null)
 
+  const [exportando, setExportando] = useState(false)
+
   const { showNotification } = useNotification()
+
+  const handleExportar = async () => {
+    setExportando(true)
+    try {
+      await exportarJustificacionesExcel()
+    } catch (error) {
+      console.error('Error al exportar justificaciones:', error)
+      showNotification('No se pudo exportar el archivo', 'error')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   const columns = [
     { id: 'clave', label: 'Clave' },
@@ -150,12 +167,21 @@ function AdminJustificaciones() {
         <Typography variant="h4" component="h1">
           Catálogo de Justificaciones
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenModal()}>
-          Nuevo Motivo
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleExportar}
+            disabled={exportando}>
+            {exportando ? 'Exportando...' : 'Exportar Excel'}
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenModal()}>
+            Nuevo Motivo
+          </Button>
+        </Stack>
       </Box>
 
       <DynamicTable

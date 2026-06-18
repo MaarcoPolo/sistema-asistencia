@@ -7,11 +7,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -64,6 +69,21 @@ public class AreaResource {
     public ResponseEntity<ApiResponse<List<AreaRecord>>> findAllForSelect() {
         return ResponseEntity.ok(
                 ApiResponse.ok(MessageConstants.AREAS_OBTENIDAS, areaService.findAllForSelect()));
+    }
+
+    /**
+     * Genera y descarga el listado de áreas activas en formato Excel (.xlsx).
+     * HTTP 200 con Content-Disposition: attachment.
+     */
+    @GetMapping("/exportar/excel")
+    public ResponseEntity<byte[]> exportarExcel() throws IOException {
+        byte[] file = areaService.exportarExcel();
+        String filename = "areas_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
     }
 
     /**
