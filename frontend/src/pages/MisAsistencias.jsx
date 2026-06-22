@@ -96,11 +96,19 @@ function MisAsistencias() {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: 2,
+          mb: 3,
+        }}>
         <Typography variant="h4" component="h1" fontWeight="bold">
           Mi Historial de Asistencias
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button variant="outlined" color="primary" onClick={() => setPasswordModalOpen(true)}>
             Cambiar Contraseña
           </Button>
@@ -121,7 +129,7 @@ function MisAsistencias() {
         </Alert>
       )}
 
-      <Card elevation={3}>
+      <Card>
         <CardContent>
           <DynamicTable
             key={tableKey}

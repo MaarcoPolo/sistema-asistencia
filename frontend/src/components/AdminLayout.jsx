@@ -1,7 +1,20 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
-import { AppBar, Box, CssBaseline, Drawer, Button, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography } from '@mui/material'
+import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  Box,
+  CssBaseline,
+  Drawer,
+  Button,
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Typography,
+  Divider,
+} from '@mui/material'
 import MenuIcon from '@mui/icons-material/Menu'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import PeopleIcon from '@mui/icons-material/People'
@@ -11,15 +24,20 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import Footer from './Footer'
 
-const drawerWidth = 240
+const drawerWidth = 256
 
 function AdminLayout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen)
+  const handleDrawerToggle = () => setMobileOpen(!mobileOpen)
+
+  // Navega y, en móvil, cierra el drawer tras elegir una opción.
+  const handleNavigate = (path) => {
+    navigate(path)
+    setMobileOpen(false)
   }
 
   const handleLogout = () => {
@@ -35,78 +53,119 @@ function AdminLayout({ children }) {
     { text: 'Justificaciones', icon: <FactCheckIcon />, path: '/admin/justificaciones' },
   ]
 
+  // Contenido del menú lateral: sidebar BLANCO, tipografía negra, activo en rosa.
   const drawerContent = (
-    <div>
-      <Toolbar
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          px: [1],
-        }}>
-        {/* WebP con fallback a PNG (PERF-014). */}
+    <Box
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'background.paper',
+        borderRight: '1px solid',
+        borderColor: 'divider',
+      }}>
+      {/* Cabecera con el logo DIF (sobre blanco, se lee perfecto). */}
+      <Box sx={{ px: 2.5, py: 2.5 }}>
         <picture>
           <source srcSet="/assets/familias-dif-rosa.webp" type="image/webp" />
           <img
             src="/assets/familias-dif-rosa.png"
             alt="Logo DIF"
-            style={{
-              height: '35px', // Un poco más pequeño para que respire en el sidebar
-              margin: 'auto',
-            }}
+            style={{ height: '40px', display: 'block' }}
           />
         </picture>
-      </Toolbar>
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton onClick={() => navigate(item.path)}>
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
+      </Box>
+
+      <Typography
+        variant="caption"
+        sx={{
+          px: 3,
+          pt: 1,
+          pb: 0.5,
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          color: 'text.secondary',
+          fontWeight: 700,
+        }}>
+        Menú principal
+      </Typography>
+
+      <List sx={{ flexGrow: 1, py: 0.5 }}>
+        {menuItems.map((item) => {
+          const selected = location.pathname === item.path
+          return (
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                selected={selected}
+                onClick={() => handleNavigate(item.path)}
+                sx={{
+                  color: selected ? 'primary.main' : 'text.primary',
+                  backgroundColor: selected ? 'rgba(255,64,129,0.10)' : 'transparent',
+                  '&:hover': {
+                    backgroundColor: selected
+                      ? 'rgba(255,64,129,0.16)'
+                      : 'rgba(0,0,0,0.04)',
+                  },
+                  '&.Mui-selected, &.Mui-selected:hover': {
+                    backgroundColor: 'rgba(255,64,129,0.12)',
+                  },
+                  // Indicador rosa a la izquierda del ítem activo.
+                  borderLeft: '3px solid',
+                  borderColor: selected ? 'primary.main' : 'transparent',
+                  transition: 'background-color .15s ease',
+                }}>
+                <ListItemIcon
+                  sx={{ color: selected ? 'primary.main' : 'text.secondary', minWidth: 40 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }}
+                />
+              </ListItemButton>
+            </ListItem>
+          )
+        })}
       </List>
-    </div>
+
+      <Divider />
+      <Box sx={{ p: 2 }}>
+        <Button
+          fullWidth
+          startIcon={<LogoutIcon />}
+          onClick={handleLogout}
+          color="primary"
+          variant="outlined"
+          sx={{ justifyContent: 'flex-start' }}>
+          Cerrar Sesión
+        </Button>
+      </Box>
+    </Box>
   )
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
       <CssBaseline />
-      <AppBar
-        position="fixed"
-        color="primary"
+
+      {/* Botón hamburguesa flotante: SOLO en móvil (en desktop el sidebar es fijo
+          y no hay header). Permite abrir el menú sin barra superior. */}
+      <IconButton
+        aria-label="abrir menú"
+        onClick={handleDrawerToggle}
         sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
+          position: 'fixed',
+          top: 12,
+          left: 12,
+          zIndex: (theme) => theme.zIndex.drawer + 2,
+          display: { xs: 'inline-flex', sm: 'none' },
+          backgroundColor: 'background.paper',
+          boxShadow: 2,
+          '&:hover': { backgroundColor: 'background.paper' },
         }}>
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}>
-            <MenuIcon />
-          </IconButton>
-          <Typography
-            variant="h6"
-            noWrap
-            component="div"
-            sx={{ flexGrow: 1, fontWeight: 'bold' }}>
-            Sistema de Asistencia DIF
-          </Typography>
-          <Button
-            color="inherit"
-            startIcon={<LogoutIcon />}
-            onClick={handleLogout}>
-            Cerrar Sesión
-          </Button>
-        </Toolbar>
-      </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
+        <MenuIcon />
+      </IconButton>
+
+      <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
         <Drawer
           variant="temporary"
           open={mobileOpen}
@@ -114,10 +173,7 @@ function AdminLayout({ children }) {
           ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
           }}>
           {drawerContent}
         </Drawer>
@@ -125,10 +181,7 @@ function AdminLayout({ children }) {
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
           }}
           open>
           {drawerContent}
@@ -136,16 +189,22 @@ function AdminLayout({ children }) {
       </Box>
 
       <Box
-        component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
           width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
         }}>
-        <Toolbar /> {children}{' '}
+        {/* Sin header: el contenido empieza arriba. En móvil dejamos un respiro
+            para que el botón flotante no tape el título de la página. */}
+        <Box
+          component="main"
+          sx={{ flexGrow: 1, p: { xs: 2, sm: 3, md: 4 }, pt: { xs: 8, sm: 3, md: 4 } }}>
+          {children}
+        </Box>
+        <Footer />
       </Box>
-      <Footer />
     </Box>
   )
 }

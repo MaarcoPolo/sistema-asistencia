@@ -22,6 +22,7 @@ import {
   TextField,
   Tooltip,
   Chip,
+  Stack,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
@@ -261,20 +262,24 @@ function AdminDashboard() {
       <Box
         sx={{
           display: 'flex',
+          flexDirection: { xs: 'column', lg: 'row' },
           justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 2,
+          alignItems: { xs: 'stretch', lg: 'center' },
+          gap: 2,
+          mb: 3,
         }}>
         <Typography variant="h4" component="h1">
           Registro de Asistencias
         </Typography>
-        <Box>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ flexWrap: 'wrap', gap: 1, justifyContent: { xs: 'flex-start', lg: 'flex-end' } }}>
           <Tooltip title="Generar Reporte">
             <Button
               variant="outlined"
               startIcon={<AssessmentIcon />}
-              onClick={() => setReporteModalOpen(true)}
-              sx={{ mr: 2 }}>
+              onClick={() => setReporteModalOpen(true)}>
               Reportes
             </Button>
           </Tooltip>
@@ -282,8 +287,7 @@ function AdminDashboard() {
             <Button
               variant="outlined"
               component="label"
-              startIcon={<UploadFileIcon />}
-              sx={{ mr: 2 }}>
+              startIcon={<UploadFileIcon />}>
               Carga Masiva
               <input
                 type="file"
@@ -318,10 +322,9 @@ function AdminDashboard() {
           <Tooltip title="Calcular Sanciones y Descuentos">
             <Button
               variant="outlined"
-              color="error" // Lo puse rojo para que resalte que son sanciones
+              color="error" // Rojo para resaltar que son sanciones
               startIcon={<AccessTimeIcon />}
-              onClick={() => setSancionesOpen(true)}
-              sx={{ mr: 2 }}>
+              onClick={() => setSancionesOpen(true)}>
               Cálculo Sanciones
             </Button>
           </Tooltip>
@@ -331,23 +334,27 @@ function AdminDashboard() {
             onClick={() => handleOpenModal()}>
             Crear Registro Manual
           </Button>
-        </Box>
+        </Stack>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
         <TextField
           name="fechaInicio"
           type="date"
           label="Fecha Inicio"
+          size="small"
           InputLabelProps={{ shrink: true }}
           onChange={handleFilterChange}
+          sx={{ width: { xs: '100%', sm: 200 } }}
         />
         <TextField
           name="fechaFin"
           type="date"
           label="Fecha Fin"
+          size="small"
           InputLabelProps={{ shrink: true }}
           onChange={handleFilterChange}
+          sx={{ width: { xs: '100%', sm: 200 } }}
         />
       </Box>
 

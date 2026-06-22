@@ -44,13 +44,11 @@ function AdminUsuarios() {
   const columns = useMemo(() => [
     { id: 'numeroControl', label: 'No. Control' },
     { id: 'nombreCompleto', label: 'Nombre Completo', sortable: false },
-    { id: 'rol', label: 'Rol' },
     {
       id: 'nombreAreaPrincipal',
       sortId: 'areaPrincipal.nombre',
       label: 'Área Principal',
     },
-    { id: 'estatus', label: 'Estatus' },
   ], [])
 
   useEffect(() => {
@@ -160,14 +158,19 @@ function AdminUsuarios() {
       <Box
         sx={{
           display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
           justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 2,
+          alignItems: { xs: 'stretch', md: 'center' },
+          gap: 2,
+          mb: 3,
         }}>
         <Typography variant="h4" component="h1">
           Gestión de Usuarios
         </Typography>
-        <Stack direction="row" spacing={1}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ flexWrap: 'wrap', gap: 1, justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
           <Button
             variant="outlined"
             startIcon={<UploadFileIcon />}

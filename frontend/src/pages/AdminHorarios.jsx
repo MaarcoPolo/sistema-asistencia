@@ -183,14 +183,19 @@ function AdminHorarios() {
       <Box
         sx={{
           display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
           justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 2,
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: 2,
+          mb: 3,
         }}>
         <Typography variant="h4" component="h1">
           Gestión de Horarios
         </Typography>
-        <Stack direction="row" spacing={1}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ flexWrap: 'wrap', gap: 1, justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}>
           <Button
             variant="outlined"
             startIcon={<FileDownloadIcon />}

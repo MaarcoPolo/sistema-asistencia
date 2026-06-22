@@ -19,7 +19,7 @@ const AdminJustificaciones = lazy(() => import('./pages/AdminJustificaciones'))
 const MisAsistencias = lazy(() => import('./pages/MisAsistencias'))
 
 const Cargando = () => (
-  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
     <CircularProgress />
   </Box>
 )
@@ -28,7 +28,7 @@ function App() {
   const { authData, isAuthLoading } = useAuth()
 
   if (isAuthLoading) {
-    return <div>Cargando...</div>
+    return <Cargando />
   }
 
   return (

@@ -12,7 +12,14 @@ import {
   TextField,
   InputAdornment,
   TablePagination,
+  Card,
+  CardContent,
+  Stack,
+  Typography,
+  Divider,
+  useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import SearchIcon from '@mui/icons-material/Search'
 import TableSkeleton from './TableSkeleton'
 
@@ -23,6 +30,10 @@ function DynamicTable({
   initialSort,
   extraFilters = {},
 }) {
+  // En móvil/tablet la tabla se reemplaza por tarjetas apiladas para evitar el
+  // scroll horizontal y mejorar la lectura (responsividad).
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [data, setData] = useState([])
   const [totalElements, setTotalElements] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -111,15 +122,123 @@ function DynamicTable({
     setPage(0)
   }
 
+  // --- Vista de tarjetas para móvil/tablet ---
+  const renderTarjetas = () => {
+    if (data.length === 0) {
+      return (
+        <Paper sx={{ p: 3, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            No hay registros para mostrar.
+          </Typography>
+        </Paper>
+      )
+    }
+
+    return (
+      <Stack spacing={1.5}>
+        {data.map((row) => {
+          const id = row.id || row.idAsistencia
+          return (
+            <Card key={id} variant="outlined">
+              <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                <Stack spacing={1}>
+                  {columns.map((col) => (
+                    <Box
+                      key={`${id}-${col.id}`}
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 2,
+                      }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ fontWeight: 600, flexShrink: 0 }}>
+                        {col.label}
+                      </Typography>
+                      <Box sx={{ textAlign: 'right', minWidth: 0 }}>
+                        {col.render ? col.render(row) : row[col.id]}
+                      </Box>
+                    </Box>
+                  ))}
+                  {renderActions && (
+                    <>
+                      <Divider sx={{ my: 0.5 }} />
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          flexWrap: 'wrap',
+                        }}>
+                        {renderActions(row)}
+                      </Box>
+                    </>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </Stack>
+    )
+  }
+
+  // --- Vista de tabla para escritorio ---
+  const renderTabla = () => (
+    <TableContainer component={Paper}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            {columns.map((col) => (
+              <TableCell
+                key={col.id}
+                sortDirection={sort.field === col.id ? sort.direction : false}>
+                {col.sortable !== false ? (
+                  <TableSortLabel
+                    active={sort.field === col.id}
+                    direction={sort.field === col.id ? sort.direction : 'asc'}
+                    onClick={() => handleSort(col.id)}
+                    sx={{ fontWeight: 'bold' }}>
+                    {col.label}
+                  </TableSortLabel>
+                ) : (
+                  <Box sx={{ fontWeight: 'bold' }}>{col.label}</Box>
+                )}
+              </TableCell>
+            ))}
+            {renderActions && (
+              <TableCell sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
+            )}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data.map((row) => (
+            <TableRow key={row.id || row.idAsistencia} hover>
+              {columns.map((col) => (
+                <TableCell key={`${row.id || row.idAsistencia}-${col.id}`}>
+                  {col.render ? col.render(row) : row[col.id]}
+                </TableCell>
+              ))}
+              {renderActions && <TableCell>{renderActions(row)}</TableCell>}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  )
+
   return (
     <Box>
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: { xs: 'stretch', sm: 'flex-end' } }}>
         <TextField
           variant="outlined"
           size="small"
           placeholder="Buscar..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          fullWidth
+          sx={{ maxWidth: { sm: 280 } }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -132,49 +251,8 @@ function DynamicTable({
       {loading ? (
         <TableSkeleton columns={columns.length + (renderActions ? 1 : 0)} />
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead sx={{ backgroundColor: 'primary.light' }}>
-              <TableRow>
-                {columns.map((col) => (
-                  <TableCell
-                    key={col.id}
-                    sortDirection={
-                      sort.field === col.id ? sort.direction : false
-                    }>
-                    {col.sortable !== false ? (
-                      <TableSortLabel
-                        active={sort.field === col.id}
-                        direction={
-                          sort.field === col.id ? sort.direction : 'asc'
-                        }
-                        onClick={() => handleSort(col.id)}
-                        sx={{ fontWeight: 'bold' }}>
-                        {col.label}
-                      </TableSortLabel>
-                    ) : (
-                      <Box sx={{ fontWeight: 'bold' }}>{col.label}</Box>
-                    )}
-                  </TableCell>
-                ))}
-                {renderActions && (
-                  <TableCell sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
-                )}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {data.map((row) => (
-                <TableRow key={row.id || row.idAsistencia} hover>
-                  {columns.map((col) => (
-                    <TableCell key={`${row.id || row.idAsistencia}-${col.id}`}>
-                      {col.render ? col.render(row) : row[col.id]}
-                    </TableCell>
-                  ))}
-                  {renderActions && <TableCell>{renderActions(row)}</TableCell>}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <>
+          {isMobile ? renderTarjetas() : renderTabla()}
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
@@ -183,8 +261,10 @@ function DynamicTable({
             page={page}
             onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
+            labelRowsPerPage={isMobile ? 'Filas:' : 'Filas por página:'}
+            sx={isMobile ? { '.MuiTablePagination-toolbar': { pl: 1 } } : undefined}
           />
-        </TableContainer>
+        </>
       )}
     </Box>
   )

@@ -156,24 +156,45 @@ function PaginaAsistencia() {
 
         <Clock />
 
-        <Webcam
-          audio={false}
-          ref={webcamRef}
-          screenshotFormat="image/jpeg"
-          width={320}
-          height={240}
-          videoConstraints={{
-            facingMode: 'user',
-          }}
-          style={{
-            borderRadius: '8px',
-            border: '1px solid #ccc',
-            marginBottom: '20px',
-          }}
-        />
+        {/* Contenedor de cámara fluido: ocupa el ancho disponible con un máximo,
+            conservando la proporción 4:3 para que se vea bien en cualquier pantalla. */}
+        <Box
+          sx={{
+            width: '100%',
+            maxWidth: 360,
+            aspectRatio: '4 / 3',
+            borderRadius: 2,
+            overflow: 'hidden',
+            border: '1px solid',
+            borderColor: 'divider',
+            mb: 3,
+            backgroundColor: 'grey.100',
+          }}>
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            videoConstraints={{ facingMode: 'user' }}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        </Box>
 
-        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 2,
+            mb: 2,
+            width: '100%',
+          }}>
           <Button
+            fullWidth
+            size="large"
             variant="contained"
             color="primary"
             onClick={() => handleRegistro('entrada')}
@@ -185,6 +206,8 @@ function PaginaAsistencia() {
               : 'Registrar Entrada'}
           </Button>
           <Button
+            fullWidth
+            size="large"
             variant="contained"
             color="secondary"
             onClick={() => handleRegistro('salida')}
@@ -197,10 +220,12 @@ function PaginaAsistencia() {
           </Button>
         </Box>
         <Button
+          fullWidth
           variant="outlined"
           color="error"
           onClick={handleLogout}
-          disabled={isLoading}>
+          disabled={isLoading}
+          sx={{ maxWidth: { sm: 200 } }}>
           Salir
         </Button>
 
