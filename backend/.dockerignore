@@ -1,0 +1,20 @@
+# Excluye del contexto de build de Docker todo lo que no se necesita para
+# compilar el .jar. Reduce el tamaño del contexto y evita filtrar secretos.
+
+# Artefactos de compilación (la imagen los genera dentro con Maven)
+target/
+
+# Credenciales y configuración local
+.env
+*.env.local
+*.log
+
+# Metadatos de IDE / control de versiones
+.idea/
+.vscode/
+.git/
+.gitignore
+
+# Documentación (no necesaria para construir)
+HELP.md
+README.md

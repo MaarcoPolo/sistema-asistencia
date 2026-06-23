@@ -1,233 +1,296 @@
 # Sistema de Control de Asistencia — SEDIF
 
-Sistema web para el registro y control de asistencia del personal de la Secretaría de Desarrollo e Inclusión Familiar (SEDIF). Los empleados registran entrada y salida desde un kiosco con cámara; los administradores consultan reportes, gestionan justificaciones y exportan en Excel/PDF.
+Sistema web para el registro y control de asistencia del personal de la
+Secretaría de Desarrollo e Inclusión Familiar (SEDIF). Los empleados registran
+entrada y salida desde un kiosco con cámara; los administradores gestionan
+usuarios, áreas, horarios y justificaciones, consultan reportes y exportan en
+Excel/PDF.
+
+Monorepo con tres servicios dockerizados: **frontend (React/Vite)**,
+**backend (Spring Boot)** y **base de datos (PostgreSQL)**.
+
+> Documentación específica de cada parte:
+> - [`backend/README.md`](backend/README.md)
+> - [`frontend/README.md`](frontend/README.md)
 
 ---
 
 ## Tabla de contenidos
 
 - [Arquitectura](#arquitectura)
+- [Tecnologías](#tecnologías)
 - [Requisitos previos](#requisitos-previos)
-- [Inicio rápido con Docker](#inicio-rápido-con-docker)
-- [Desarrollo local](#desarrollo-local)
+- [Estructura del repositorio](#estructura-del-repositorio)
 - [Variables de entorno](#variables-de-entorno)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [API REST](#api-rest)
-- [Autenticación y seguridad](#autenticación-y-seguridad)
-- [Base de datos y migraciones](#base-de-datos-y-migraciones)
-- [Roles y permisos](#roles-y-permisos)
+- [Levantar el proyecto en local](#levantar-el-proyecto-en-local)
+- [Despliegue en servidor](#despliegue-en-servidor)
+- [Migrar / restaurar la base de datos](#migrar--restaurar-la-base-de-datos)
+- [Funcionalidades clave](#funcionalidades-clave)
+- [Respaldos](#respaldos)
+- [Roles](#roles)
+- [Convenciones](#convenciones)
 
 ---
 
 ## Arquitectura
 
 ```
-┌─────────────────┐     HTTP/JSON      ┌──────────────────────┐
-│  Frontend        │ ──────────────▶  │  Backend (Spring Boot)│
-│  React 18 + Vite │ ◀──────────────  │  Puerto 8080          │
-│  Puerto 80       │  ApiResponse<T>   └──────────┬───────────┘
-└─────────────────┘                              │ JDBC
-                                                 ▼
-                                    ┌──────────────────────┐
-                                    │  PostgreSQL 17        │
-                                    │  Puerto 5433 (host)   │
-                                    └──────────────────────┘
+                  ┌──────────────────────────────────────────────────┐
+   Navegador ───▶ │  Reverse proxy (Nginx Proxy Manager, contenedor)  │
+                  │   /        → frontend                             │
+                  │   /api/    → backend                              │
+                  └───────┬───────────────────────┬──────────────────┘
+                          │ (red docker)           │
+                  ┌───────▼──────┐         ┌────────▼─────────┐      ┌──────────────┐
+                  │  frontend    │         │   backend         │ JDBC │   db          │
+                  │  React+Vite  │         │   Spring Boot     │────▶ │  PostgreSQL   │
+                  │  Nginx :8080 │         │   :8080           │      │  :5432        │
+                  └──────────────┘         └───────────────────┘      └──────────────┘
 ```
 
-**Stack:**
-- **Backend:** Spring Boot 3.5.6, Java 17, Spring Security + JWT (JJWT 0.12.5), Spring Data JPA, Flyway
-- **Frontend:** React 18, Vite, Material-UI (MUI), Axios
-- **Base de datos:** PostgreSQL 17
-- **Contenedores:** Docker Compose
+- El **frontend** y el **backend** se comunican bajo el mismo origen
+  (`/` y `/api`), por lo que no hay problemas de CORS en producción.
+- En el servidor, los contenedores **no publican puertos al host**: el reverse
+  proxy los alcanza por nombre dentro de la red de Docker.
+
+---
+
+## Tecnologías
+
+| Capa | Stack |
+|---|---|
+| Frontend | React 19, Vite 7, Material UI 7, axios, react-router-dom 7 |
+| Backend | Java 17, Spring Boot 3.5.6 (Web, Data JPA, Security, Validation, Cache, Actuator) |
+| Seguridad | JWT (jjwt 0.12.5), BCrypt, rate limiting (bucket4j) |
+| Base de datos | PostgreSQL 17 + Flyway (migraciones) |
+| Exportación | Apache POI (Excel), OpenPDF (PDF) |
+| Contenedores | Docker + Docker Compose |
+| Reverse proxy | Nginx Proxy Manager (en servidor) |
 
 ---
 
 ## Requisitos previos
 
-- Docker Desktop >= 24 y Docker Compose v2
-- (Solo desarrollo local) JDK 17+, Node.js 20+, Maven 3.9+
+- **Docker** y **Docker Compose** (v2).
+- Para desarrollo sin Docker: **Java 17**, **Node 18+** y **PostgreSQL**.
 
 ---
 
-## Inicio rápido con Docker
+## Estructura del repositorio
 
-```bash
-# 1. Copiar el archivo de variables de entorno y editarlo
-cp .env.example .env
-# Editar .env con tus credenciales reales
-
-# 2. Levantar todos los servicios
-docker compose up -d --build
-
-# 3. Verificar que los tres servicios estén corriendo
-docker compose ps
+```
+sistema-asistencia/
+├── backend/                    # API Spring Boot (ver backend/README.md)
+├── frontend/                   # SPA React/Vite (ver frontend/README.md)
+├── docker-compose.yml          # Base: servicios db / backend / frontend (sin puertos)
+├── docker-compose.local.yml    # Override LOCAL: publica puertos para tu PC
+├── docker-compose.prod.yml     # Override SERVIDOR: conecta a la red del reverse proxy
+├── .env.example                # Plantilla de variables (copiar a .env)
+└── .gitignore
 ```
 
-El frontend queda disponible en `http://localhost` y el backend en `http://localhost:8080`.
+### ¿Por qué tres archivos compose?
 
----
+El `docker-compose.yml` base **no publica puertos** (eso depende del entorno).
+Se combina con un override según dónde levantes:
 
-## Desarrollo local
-
-### Backend
-
-```bash
-cd backend
-export DB_URL=jdbc:postgresql://localhost:5433/asistencia_db
-export DB_USERNAME=postgres
-export DB_PASSWORD=tu_password
-export JWT_SECRET=clave_de_al_menos_32_caracteres
-
-mvn spring-boot:run
-```
-
-### Frontend
-
-```bash
-cd frontend
-cp .env.example .env
-# Editar VITE_API_URL si el backend corre en otro puerto
-
-npm install
-npm run dev
-# Disponible en http://localhost:5173
-```
+- **Local** → `docker-compose.local.yml` (expone puertos a tu máquina).
+- **Servidor** → `docker-compose.prod.yml` (sin puertos; usa la red de Nginx
+  Proxy Manager y construye el frontend con `VITE_API_URL=/api`).
 
 ---
 
 ## Variables de entorno
 
-### `.env` (raíz del proyecto — para Docker Compose)
+Copia la plantilla y rellena los valores reales (el `.env` **no** se commitea):
 
-| Variable      | Descripción                                    | Ejemplo               |
-|---------------|------------------------------------------------|-----------------------|
-| `DB_NAME`     | Nombre de la base de datos                     | `asistencia_db`       |
-| `DB_USERNAME` | Usuario de PostgreSQL                          | `postgres`            |
-| `DB_PASSWORD` | Contraseña de PostgreSQL                       | `supersecret`         |
-| `JWT_SECRET`  | Clave HMAC-SHA256 (minimo 32 caracteres)       | `cambia_en_produccion`|
-
-### `frontend/.env`
-
-| Variable       | Descripción                              | Ejemplo                      |
-|----------------|------------------------------------------|------------------------------|
-| `VITE_API_URL` | URL base del API (sin `/` final)         | `http://localhost:8080/api`  |
-
-> **Nunca** commitear `.env` al repositorio. Está en `.gitignore`.
-
----
-
-## Estructura del proyecto
-
-```
-sistema-asistencia/
-├── backend/
-│   ├── src/main/java/mx/gob/sedif/asistencia/
-│   │   ├── core/
-│   │   │   ├── area/            # Areas organizacionales
-│   │   │   ├── asistencia/      # Registro, reportes, sanciones
-│   │   │   ├── horario/         # Horarios y excepciones de horario
-│   │   │   ├── justificacion/   # Catalogo de justificaciones
-│   │   │   └── usuario/         # CRUD de usuarios
-│   │   ├── exception/
-│   │   │   ├── ApiResponse.java          # Wrapper uniforme de respuestas
-│   │   │   ├── GlobalExceptionHandler.java
-│   │   │   └── MessageConstants.java     # Todos los mensajes al usuario
-│   │   └── security/
-│   │       ├── auth/            # Login, refresh token, logout
-│   │       └── config/          # SecurityConfig, JwtFilter
-│   └── src/main/resources/
-│       ├── db/migration/        # Scripts Flyway (V1, V2, V3...)
-│       └── application.properties
-├── frontend/
-│   └── src/
-│       ├── components/          # DynamicTable, modales, formularios
-│       ├── context/             # AuthContext, NotificationContext
-│       ├── pages/               # Una pagina por modulo
-│       └── services/            # Clientes HTTP por dominio
-├── docker-compose.yml
-├── .env.example
-└── README.md
+```bash
+cp .env.example .env
 ```
 
+| Variable | Descripción | Ejemplo |
+|---|---|---|
+| `DB_NAME` | Nombre de la base de datos | `asistencia_db` |
+| `DB_USERNAME` | Usuario de PostgreSQL | `postgres` |
+| `DB_PASSWORD` | Contraseña de PostgreSQL | (secreto) |
+| `JWT_SECRET` | Secreto del JWT (≥ 64 caracteres). `openssl rand -base64 64` | (secreto largo) |
+| `CORS_ALLOWED_ORIGIN` | Origen del frontend (servidor/prod), sin barra final | `http://asistencia.sedif.gob.mx` |
+
+> El `.env` lo lee automáticamente Docker Compose. **Nunca** lo subas al repo
+> (está en `.gitignore`); `.env.example` es la plantilla versionada.
+
 ---
 
-## API REST
+## Levantar el proyecto en local
 
-Todas las respuestas siguen el formato `ApiResponse<T>`:
+```bash
+# 1. Variables de entorno
+cp .env.example .env          # edita los valores
 
-```json
-{
-  "success": true,
-  "code": 200,
-  "message": "Operacion completada",
-  "data": { ... },
-  "fieldErrors": null,
-  "timestamp": "2026-06-05T10:30:00"
-}
+# 2. Levantar todo (base + override local)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
-En errores, `success` es `false` y `data` es `null`. Para errores de validacion, `fieldErrors` contiene la lista de campos invalidos.
+Con el override local, los servicios quedan accesibles en tu PC:
 
-### Endpoints principales
+| Servicio | URL local |
+|---|---|
+| Frontend | http://localhost |
+| Backend (API) | http://localhost:8080/api |
+| PostgreSQL | localhost:5433 |
 
-| Metodo | Ruta                                  | Rol minimo  | Descripcion                                      |
-|--------|---------------------------------------|-------------|--------------------------------------------------|
-| POST   | `/api/auth/login`                     | Publico     | Autenticacion con usuario y contrasena           |
-| POST   | `/api/auth/identificar`               | Publico     | Identificacion por kiosco (sin contrasena)       |
-| POST   | `/api/auth/refresh`                   | Publico     | Renueva access token con refresh token (cookie)  |
-| POST   | `/api/auth/logout`                    | Autenticado | Invalida la cookie de refresh token              |
-| GET    | `/api/asistencia/estado-diario`       | USER        | Estado de entrada/salida del dia actual          |
-| POST   | `/api/asistencia/registrar-entrada`   | USER        | Registra entrada con foto base64                 |
-| POST   | `/api/asistencia/registrar-salida`    | USER        | Registra salida con foto base64                  |
-| GET    | `/api/asistencia/reporte`             | ADMIN       | Reporte paginado con filtros                     |
-| POST   | `/api/asistencia/manual`              | ADMIN       | Crea registro manual                             |
-| PUT    | `/api/asistencia/manual/{id}`         | ADMIN       | Edita registro manual                            |
-| DELETE | `/api/asistencia/{id}`                | ADMIN       | Elimina registro                                 |
-| GET    | `/api/asistencia/exportar/excel`      | ADMIN       | Descarga reporte en Excel                        |
-| GET    | `/api/asistencia/exportar/pdf`        | ADMIN       | Descarga reporte en PDF                          |
-| POST   | `/api/asistencia/upload`              | ADMIN       | Carga masiva desde Excel de biometrico           |
-| GET    | `/api/asistencia/resumen-sanciones`   | ADMIN       | Sanciones calculadas por periodo                 |
-| GET    | `/api/core/usuario`                   | ADMIN       | Lista paginada de usuarios                       |
-| POST   | `/api/core/usuario`                   | ADMIN       | Crea usuario                                     |
-| PUT    | `/api/core/usuario/{id}`              | ADMIN       | Actualiza usuario                                |
-| DELETE | `/api/core/usuario/{id}`              | ADMIN       | Soft-delete de usuario                           |
-| GET    | `/api/core/area`                      | ADMIN       | Lista de areas                                   |
-| GET    | `/api/core/horario`                   | ADMIN       | Lista de horarios                                |
-| GET    | `/api/core/justificacion`             | ADMIN       | Catalogo de justificaciones                      |
+Comandos útiles:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml ps
+docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f backend
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
+```
+
+> Alternativa sin Docker: ver los README de `backend/` y `frontend/` para
+> ejecutar cada uno por separado (`./mvnw spring-boot:run` y `npm run dev`).
 
 ---
 
-## Autenticacion y seguridad
+## Despliegue en servidor
 
-El sistema usa **JWT + Refresh Token rotativo**:
+El servidor usa **Nginx Proxy Manager (NPM)** como reverse proxy (contenedor).
 
-1. **Login** el servidor retorna un `accessToken` (1 hora) en el body JSON y un `refreshToken` (7 dias) en una cookie `HttpOnly; Secure; Path=/api/auth`.
-2. **Peticiones autenticadas** el frontend envia `Authorization: Bearer <accessToken>`.
-3. **Token expirado (401)** el interceptor de Axios llama automaticamente a `/api/auth/refresh`. La cookie se envia automaticamente. El servidor valida el refresh token, rota la cookie y devuelve un nuevo access token.
-4. **Logout** llama a `/api/auth/logout` que establece la cookie con `maxAge=0`.
+```bash
+# En el servidor, dentro del directorio del proyecto:
+git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
 
-**Flujo del kiosco:** usa `/api/auth/identificar` que acepta numero de control y foto sin contrasena. Genera los mismos tokens y cierra la sesion automaticamente al terminar el registro.
+Para no escribir los dos `-f` cada vez, en el servidor se fija el archivo compose:
+
+```bash
+echo 'export COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml' >> ~/.bashrc
+source ~/.bashrc
+# luego basta:  docker compose up -d --build
+```
+
+### Reverse proxy (Nginx Proxy Manager)
+
+NPM se administra desde su **interfaz web** (puerto `81` por defecto), no por
+archivos de configuración. Pasos para publicar el sistema:
+
+1. **Hosts → Proxy Hosts → Add Proxy Host.** Pestaña **Details**:
+   - **Domain Names**: el dominio del sistema (ej. `asistencia.sedif.gob.mx`).
+   - **Scheme**: `http`
+   - **Forward Hostname / IP**: `asistencia-frontend`
+   - **Forward Port**: `8080`
+   - Activar **Block Common Exploits**.
+
+2. Pestaña **Advanced** → en *Custom Nginx Configuration* pegar el ruteo de la
+   API y el tamaño máximo de subida (el backend acepta archivos de hasta ~6 MB):
+
+   ```nginx
+   client_max_body_size 8m;
+
+   location /api/ {
+       proxy_pass http://asistencia-backend:8080;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+
+   > Importante: el ruteo de `/api` va en **Advanced**, NO en la pestaña
+   > "Custom Locations" del formulario — esa última reescribe mal la ruta y
+   > produce **405** en el login.
+
+3. **Save.**
+
+Para que NPM resuelva `asistencia-frontend` / `asistencia-backend` por nombre,
+los contenedores deben estar en la **misma red de Docker que NPM** (declarada
+como red externa en `docker-compose.prod.yml`). Verificación:
+
+```bash
+docker network inspect <red_de_npm> --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}'
+# deben aparecer: el contenedor de NPM, asistencia-frontend y asistencia-backend
+```
+
+> En pruebas el acceso puede ser por HTTP sin SSL. Para producción real conviene
+> habilitar HTTPS (Let's Encrypt) desde la pestaña **SSL** del Proxy Host.
 
 ---
 
-## Base de datos y migraciones
+## Migrar / restaurar la base de datos
 
-Las migraciones se ejecutan automaticamente al iniciar el backend con Flyway. Los scripts estan en `backend/src/main/resources/db/migration/`:
+El esquema lo gestiona **Flyway**. Para llevar datos existentes a otro entorno,
+el orden importa por la tabla `flyway_schema_history`:
 
-| Script | Descripcion |
-|--------|-------------|
-| `V1__create_initial_tables.sql` | Esquema inicial: usuarios, areas, horarios, asistencias, justificaciones |
-| `V2__add_columna_requiere_cambio_password.sql` | Columna para forzar cambio de contrasena en primer login |
-| `V3__cambiar_enums_a_string.sql` | Convierte columnas de rol y estatus de enteros a texto (migracion de EnumType.ORDINAL a STRING) |
+```bash
+# 1. [ORIGEN] generar el dump (dentro del contenedor de la BD)
+docker exec -t asistencia-db pg_dump -U postgres -d asistencia_db --clean --if-exists > dump.sql
+
+# 2. transferir el dump al destino (scp, etc.)
+
+# 3. [DESTINO] levantar SOLO la BD y esperar "healthy"
+docker compose up -d db
+docker compose ps
+
+# 4. restaurar el dump ANTES de arrancar el backend
+docker exec -i asistencia-db psql -U postgres -d asistencia_db < dump.sql
+
+# 5. levantar el resto
+docker compose up -d --build
+```
+
+> Restaurar **antes** del backend evita que Flyway intente crear tablas que el
+> dump ya trae (el dump incluye el esquema y el historial de migraciones).
 
 ---
 
-## Roles y permisos
+## Funcionalidades clave
 
-| Rol          | Descripcion                                                                  |
-|--------------|------------------------------------------------------------------------------|
-| `SUPERADMIN` | Acceso completo. Puede crear administradores y ver todos los reportes.       |
-| `ADMIN`      | Gestion de usuarios de sus areas, reportes y justificaciones.                |
-| `USER`       | Solo puede registrar asistencia y consultar su propio historial.             |
+- **Kiosco con cámara**: el empleado registra entrada/salida con foto.
+- **Panel de administración**: gestión de usuarios, áreas, horarios y catálogo
+  de justificaciones.
+- **Reportes de asistencia** con filtros y exportación a **Excel** y **PDF**.
+- **Exportación a Excel** en los catálogos (usuarios, áreas, horarios,
+  justificaciones); en usuarios, con modal de opciones (todos / por área / uno).
+- **Carga masiva de usuarios** desde Excel, con validación fila por fila y
+  reporte de errores (duplicados, área inexistente, datos faltantes).
+- **Justificaciones** de incidencias (flujo de solicitud y aprobación).
+- **Cálculo de sanciones** y descuentos por incidencias.
 
-La contrasena por defecto de un usuario nuevo es `{numeroControl}-DIF`. El sistema obliga a cambiarla en el primer inicio de sesion.
+---
+
+## Respaldos
+
+Respaldo manual de la base de datos:
+
+```bash
+docker exec -t asistencia-db pg_dump -U postgres -d asistencia_db --clean --if-exists \
+  > backup_$(date +%F).sql
+```
+
+Recomendado automatizarlo con `cron` en el servidor, guardando los dumps **fuera**
+del repositorio (los `*.sql` están ignorados por git salvo las migraciones).
+
+---
+
+## Roles
+
+| Rol | Alcance |
+|---|---|
+| `SUPERADMIN` | Acceso completo: todas las áreas y operaciones; crea administradores |
+| `ADMIN` | Solo las áreas que gestiona; no crea usuarios con rol superior |
+| `USER` | Registra su asistencia y consulta su propio historial / justifica lo propio |
+
+> La contraseña por defecto de un usuario nuevo es `{numeroControl}-DIF`. El
+> sistema obliga a cambiarla en el primer inicio de sesión.
+
+---
+
+## Convenciones
+
+- **Backend organizado por feature** (`core/<feature>/`), no por capas. Detalle
+  en `backend/README.md`.
+- **Frontend**: toda llamada al backend pasa por `services/`; UI con MUI; estilo
+  centralizado en `theme.js`. Detalle en `frontend/README.md`.
+- **Secretos**: solo en `.env` (ignorado por git); `.env.example` es la plantilla.
+- **Migraciones**: nunca editar una ya aplicada; crear `V(n+1)__...`.

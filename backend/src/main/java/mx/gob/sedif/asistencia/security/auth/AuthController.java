@@ -68,4 +68,15 @@ public class AuthController {
         authService.logout(response);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Restablece la contraseña del usuario a la inicial, identificándolo por el
+     * número de control que él mismo reescribe (flujo "olvidé mi contraseña").
+     * Si el número de control no existe retorna 400 con el mensaje de verificación.
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPasswordPorNumeroControl(request);
+        return ResponseEntity.noContent().build();
+    }
 }

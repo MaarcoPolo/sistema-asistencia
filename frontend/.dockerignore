@@ -1,0 +1,27 @@
+# Excluye del contexto de build de Docker lo que no se necesita para generar el
+# bundle de producción. node_modules se reinstala dentro de la imagen.
+
+# Dependencias y artefactos (se generan dentro de la imagen)
+node_modules/
+dist/
+dist-ssr/
+
+# Credenciales y configuración local
+.env
+*.env.local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Metadatos de IDE / control de versiones
+.idea/
+.vscode/
+.git/
+.gitignore
+
+# Documentación (no necesaria para construir)
+README.md

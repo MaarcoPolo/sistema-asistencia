@@ -1,13 +1,16 @@
-.vscode
+# ── Editores / IDE ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
 
 # ── Base de datos local ────────────────────────────────────────────────────────
 pgdata/
 # Los respaldos SQL pueden contener datos sensibles de empleados.
-# Nunca commitear archivos .sql de respaldo.
+# Nunca commitear archivos .sql de respaldo. Se exceptúan las migraciones Flyway.
 *.sql
 !backend/src/main/resources/db/migration/*.sql
 
 # ── Credenciales ───────────────────────────────────────────────────────────────
+# El .env real nunca se sube; sí se versiona .env.example como plantilla.
 .env
 *.env.local
 
@@ -18,5 +21,6 @@ frontend/.env.local
 
 # ── Backend ────────────────────────────────────────────────────────────────────
 backend/target/
-backend/.mvn/
 backend/*.log
+# Nota: NO se ignora backend/.mvn — el Maven Wrapper (.mvn/wrapper) es necesario
+# para construir el proyecto (lo usa el Dockerfile y quien clone el repo).

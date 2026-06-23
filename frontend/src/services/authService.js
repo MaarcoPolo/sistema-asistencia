@@ -33,6 +33,18 @@ export const identificarUsuario = async (numeroControl) => {
 }
 
 /**
+ * Restablece la contraseña del usuario a la inicial que asigna el sistema.
+ * El usuario se identifica reescribiendo su número de control en el login
+ * (flujo "olvidé mi contraseña"). Si el número de control no existe, el backend
+ * responde 400 con el mensaje a mostrar.
+ *
+ * @param {string} numeroControl Número de control del usuario a restablecer.
+ */
+export const restablecerContrasena = async (numeroControl) => {
+  await apiClient.post('/auth/reset-password', { numeroControl })
+}
+
+/**
  * Cierra la sesión en el servidor invalidando la cookie de refresh token.
  * El frontend debe limpiar localStorage de forma independiente.
  */

@@ -18,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +42,7 @@ public class AuthResource {
     private final JwtTokenProvider jwtTokenProvider;
     private final UsuarioRepository usuarioRepository;
     private final UserDetailsServiceImpl userDetailsService;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      * Autentica un administrador con número de control y contraseña.
@@ -170,6 +172,31 @@ public class AuthResource {
                 .sameSite("Strict")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    /**
+     * Restablece la contraseña de un usuario a su valor inicial
+     * ({@code numeroControl + "-DIF"}), identificándolo por el número de control
+     * que el propio usuario reescribe en el login.
+     *
+     * <p>Endpoint público pensado para el caso de "olvidé mi contraseña". Si el
+     * número de control no existe se lanza {@link IllegalArgumentException} para
+     * que el frontend muestre el aviso de verificación. Vuelve a activar la
+     * exigencia de cambio de contraseña en el siguiente acceso.
+     *
+     * @param request DTO con el número de control a restablecer.
+     */
+    @Transactional
+    public void resetPasswordPorNumeroControl(ResetPasswordRequest request) {
+        Usuario usuario = usuarioRepository.findByNumeroControl(request.numeroControl())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Número de control incorrecto, favor de verificar"));
+
+        usuario.setPassword(passwordEncoder.encode(usuario.getNumeroControl() + "-DIF"));
+        usuario.setRequiereCambioPassword(true);
+        usuarioRepository.save(usuario);
+        log.info("Contraseña restablecida a la inicial para el número de control {}",
+                usuario.getNumeroControl());
     }
 
     // ── Métodos privados ──────────────────────────────────────────────────────

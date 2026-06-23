@@ -9,9 +9,11 @@ import {
   Container,
   Paper,
   Avatar,
+  Divider,
+  Link,
 } from '@mui/material'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
-import { loginAdmin } from '../services/authService.js'
+import { loginAdmin, restablecerContrasena } from '../services/authService.js'
 import { useNotification } from '../context/NotificationContext'
 
 function LoginAdmin() {
@@ -19,6 +21,13 @@ function LoginAdmin() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Estado del flujo "olvidé mi contraseña": se identifica reescribiendo el
+  // número de control para tener certeza de a quién se le restablece.
+  const [mostrarReset, setMostrarReset] = useState(false)
+  const [resetNumeroControl, setResetNumeroControl] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+
   const navigate = useNavigate()
   const { login } = useAuth()
   const { showNotification } = useNotification()
@@ -40,6 +49,23 @@ function LoginAdmin() {
     }
   }
 
+  const handleReset = async (event) => {
+    event.preventDefault()
+    try {
+      setResetLoading(true)
+      await restablecerContrasena(resetNumeroControl)
+      showNotification('Su contraseña se ha restablecido a la contraseña inicial', 'success')
+      setMostrarReset(false)
+      setResetNumeroControl('')
+    } catch (err) {
+      const message =
+        err.response?.data?.message || 'Número de control incorrecto, favor de verificar'
+      showNotification(message, 'error')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   return (
     <Container component="main" maxWidth="xs">
       <Paper
@@ -57,7 +83,7 @@ function LoginAdmin() {
           <LockOutlinedIcon />
         </Avatar>
         <Typography component="h1" variant="h5">
-          Acceso de Administrador
+          Acceso
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           Ingresa tus credenciales para continuar
@@ -99,6 +125,57 @@ function LoginAdmin() {
             {loading ? 'Ingresando...' : 'Ingresar'}
           </Button>
         </Box>
+
+        {/* ── Olvidé mi contraseña: restablece a la inicial del sistema ── */}
+        {!mostrarReset ? (
+          <Link
+            component="button"
+            type="button"
+            variant="body2"
+            underline="hover"
+            onClick={() => {
+              setMostrarReset(true)
+              setResetNumeroControl('')
+            }}>
+            ¿Olvidó su contraseña? Restablecer
+          </Link>
+        ) : (
+          <Box component="form" onSubmit={handleReset} sx={{ width: '100%' }}>
+            <Divider sx={{ mb: 2 }} />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Escriba su número de control para restablecer su contraseña a la inicial.
+            </Typography>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="resetNumeroControl"
+              label="Número de Control"
+              name="resetNumeroControl"
+              value={resetNumeroControl}
+              onChange={(e) => setResetNumeroControl(e.target.value)}
+            />
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => {
+                  setMostrarReset(false)
+                  setResetNumeroControl('')
+                }}
+                disabled={resetLoading}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                disabled={resetLoading}>
+                {resetLoading ? 'Restableciendo...' : 'Restablecer contraseña'}
+              </Button>
+            </Box>
+          </Box>
+        )}
       </Paper>
     </Container>
   )

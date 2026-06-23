@@ -24,7 +24,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import Footer from './Footer'
 
-const drawerWidth = 256
+const drawerWidth = 180
 
 function AdminLayout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -66,29 +66,12 @@ function AdminLayout({ children }) {
       }}>
       {/* Cabecera con el logo DIF (sobre blanco, se lee perfecto). */}
       <Box sx={{ px: 2.5, py: 2.5 }}>
-        <picture>
-          <source srcSet="/assets/familias-dif-rosa.webp" type="image/webp" />
-          <img
-            src="/assets/familias-dif-rosa.png"
-            alt="Logo DIF"
-            style={{ height: '40px', display: 'block' }}
-          />
-        </picture>
+        <img
+          src="/assets/corazon.png"
+          alt="Logo DIF"
+          style={{ width: '52px', height: '52px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+        />
       </Box>
-
-      <Typography
-        variant="caption"
-        sx={{
-          px: 3,
-          pt: 1,
-          pb: 0.5,
-          letterSpacing: 1,
-          textTransform: 'uppercase',
-          color: 'text.secondary',
-          fontWeight: 700,
-        }}>
-        Menú principal
-      </Typography>
 
       <List sx={{ flexGrow: 1, py: 0.5 }}>
         {menuItems.map((item) => {

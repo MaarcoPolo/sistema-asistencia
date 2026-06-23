@@ -14,19 +14,16 @@ function PublicLayout({ children }) {
       {/* ========== HEADER ========== */}
       <AppBar position="static" elevation={0}>
         <Toolbar sx={{ justifyContent: 'center', gap: 2 }}>
-          <picture>
-            <source srcSet="/assets/familias-dif-rosa.webp" type="image/webp" />
-            <img
-              src="/assets/familias-dif-rosa.png"
-              alt="Logo Sistema Estatal DIF"
-              style={{ height: '42px', marginRight: '16px', display: 'block' }}
-            />
-          </picture>
+          <img
+            src="/assets/corazon.png"
+            alt="Logo Sistema Estatal DIF"
+            style={{ width: '48px', height: '48px', objectFit: 'contain', display: 'block' }}
+          />
           <Typography
             variant="h6"
             component="div"
             sx={{ fontWeight: 700, letterSpacing: 0.5, color: 'text.primary' }}>
-            SISTEMA ESTATAL DIF
+            Sistema de Asistencia SEDIF
           </Typography>
         </Toolbar>
       </AppBar>
