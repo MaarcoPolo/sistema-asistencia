@@ -12,11 +12,14 @@ export const exportarUsuariosExcel = (params = {}) => {
   return descargarArchivo('/core/usuario/exportar/excel', params, 'usuarios.xlsx')
 }
 
-// Carga masiva de usuarios desde un archivo Excel. Devuelve el resumen
-// { procesados, errores, detalleErrores }.
-export const subirUsuariosMasivo = async (file) => {
+// Carga masiva de usuarios desde un archivo Excel.
+// modo: 'CREAR' (alta de nuevos, reporta duplicados) | 'ACTUALIZAR_HORARIO'
+// (solo actualiza el horario de usuarios existentes).
+// Devuelve el resumen { procesados, errores, sinCambios, detalleErrores }.
+export const subirUsuariosMasivo = async (file, modo = 'CREAR') => {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('modo', modo)
 
   const response = await apiClient.post('/core/usuario/carga-masiva', formData, {
     headers: {

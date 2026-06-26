@@ -81,17 +81,21 @@ public class UsuarioResource {
     }
 
     /**
-     * Carga masiva de usuarios desde un archivo Excel. Todos quedan con estatus
-     * ACTIVE y rol USER; la contraseña se genera automáticamente. Devuelve un
-     * resumen con el total de procesados, de errores y el detalle fila por fila.
+     * Carga masiva de usuarios desde un archivo Excel. Devuelve un resumen con el
+     * total de procesados, errores, sin cambios y el detalle fila por fila.
+     *
+     * @param modo "CREAR" (por defecto) da de alta usuarios nuevos y reporta
+     *             duplicados; "ACTUALIZAR_HORARIO" solo actualiza el horario de
+     *             usuarios ya existentes.
      * HTTP 200 con el resumen dentro del wrapper ApiResponse.
      */
     @PostMapping("/carga-masiva")
     @PreAuthorize("hasAnyRole('SUPERADMIN', 'ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> cargaMasiva(
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "modo", required = false, defaultValue = "CREAR") String modo
     ) throws IOException {
-        Map<String, Object> resultado = usuarioService.procesarCargaMasivaUsuarios(file);
+        Map<String, Object> resultado = usuarioService.procesarCargaMasivaUsuarios(file, modo);
         int procesados = (int) resultado.get("procesados");
         int errores = (int) resultado.get("errores");
         String mensaje = String.format(MessageConstants.EXCEL_PROCESADO, procesados, errores);

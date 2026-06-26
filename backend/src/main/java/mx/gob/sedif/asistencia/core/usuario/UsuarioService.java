@@ -163,18 +163,24 @@ public class UsuarioService {
      */
     @CacheEvict(value = "areasAdmin", allEntries = true)
     @Transactional
-    public Map<String, Object> procesarCargaMasivaUsuarios(MultipartFile file) throws IOException {
+    public Map<String, Object> procesarCargaMasivaUsuarios(MultipartFile file, String modo) throws IOException {
+        // Modo de operación de la carga:
+        //   "CREAR"               → da de alta usuarios nuevos; reporta duplicados.
+        //   "ACTUALIZAR_HORARIO"  → solo actualiza el horario de usuarios existentes.
+        boolean modoActualizarHorario = "ACTUALIZAR_HORARIO".equalsIgnoreCase(modo);
+
         Usuario currentUser = securityUtil.getCurrentUser()
                 .orElseThrow(() -> new RuntimeException("Usuario no autenticado"));
 
-        // Si es ADMIN, solo puede cargar usuarios en sus áreas gestionadas.
+        // Si es ADMIN, solo puede operar sobre sus áreas gestionadas.
         Set<Integer> idsAreasPermitidas = currentUser.getRol() == Rol.ADMIN
                 ? areaService.obtenerIdsDeAreasGestionadasPorAdmin(currentUser)
                 : null; // null => SUPERADMIN, sin restricción
 
-        int procesados = 0;
+        int procesados = 0;  // creados o actualizados
         int errores = 0;
-        List<String> detalleErrores = new ArrayList<>();
+        int sinCambios = 0;
+        List<String> detalle = new ArrayList<>();
 
         // Detecta números de control repetidos dentro del propio archivo.
         Set<String> numerosControlEnArchivo = new HashSet<>();
@@ -190,89 +196,29 @@ public class UsuarioService {
                 // Saltar filas totalmente vacías sin contarlas como error.
                 if (filaVacia(row)) continue;
 
+                String numeroControl = getCellValueAsString(row.getCell(0));
+                String prefijo = "Fila " + numeroFila
+                        + (numeroControl.isBlank() ? "" : " (" + numeroControl + ")") + ": ";
+
                 try {
-                    String numeroControl = getCellValueAsString(row.getCell(0));
-                    String nombre = getCellValueAsString(row.getCell(1));
-                    String apellidoPaterno = getCellValueAsString(row.getCell(2));
-                    String apellidoMaterno = getCellValueAsString(row.getCell(3));
-                    String areaIdTexto = getCellValueAsString(row.getCell(4));
-                    String rolTexto = getCellValueAsString(row.getCell(5)).toUpperCase();
-
-                    // --- Validaciones de campos obligatorios ---
-                    if (numeroControl.isBlank()) {
-                        throw new IllegalArgumentException("El número de control es obligatorio.");
+                    if (modoActualizarHorario) {
+                        // Devuelve 1 si actualizó; si no hubo cambio lanza
+                        // FilaSinCambiosException (se cuenta como "sin cambios").
+                        procesados += procesarFilaActualizarHorario(
+                                row, numeroControl, numerosControlEnArchivo, idsAreasPermitidas,
+                                prefijo, detalle);
+                    } else {
+                        procesarFilaCrear(
+                                row, numeroControl, numerosControlEnArchivo, idsAreasPermitidas,
+                                prefijo, detalle);
+                        procesados++;
                     }
-                    if (nombre.isBlank()) {
-                        throw new IllegalArgumentException("El nombre es obligatorio.");
-                    }
-                    if (apellidoPaterno.isBlank()) {
-                        throw new IllegalArgumentException("El apellido paterno es obligatorio.");
-                    }
-
-                    // --- Rol: solo USER en carga masiva ---
-                    if (rolTexto.isBlank()) {
-                        throw new IllegalArgumentException("El rol es obligatorio (debe ser USER).");
-                    }
-                    Rol rol;
-                    try {
-                        rol = Rol.valueOf(rolTexto);
-                    } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Rol inválido '" + rolTexto + "'. Solo se permite USER.");
-                    }
-                    if (rol != Rol.USER) {
-                        throw new IllegalArgumentException("Solo se permite el rol USER en la carga masiva. "
-                                + "Los administradores se crean de forma individual.");
-                    }
-
-                    // --- Área ---
-                    if (areaIdTexto.isBlank()) {
-                        throw new IllegalArgumentException("El area_id es obligatorio.");
-                    }
-                    Integer areaId;
-                    try {
-                        areaId = Integer.valueOf(areaIdTexto);
-                    } catch (NumberFormatException ex) {
-                        throw new IllegalArgumentException("El area_id '" + areaIdTexto + "' no es un número válido.");
-                    }
-                    Area area = areaRepository.findById(areaId)
-                            .orElseThrow(() -> new IllegalArgumentException("No existe un área con id " + areaId + "."));
-                    if (area.getEstatus() != Estado.ACTIVE) {
-                        throw new IllegalArgumentException("El área con id " + areaId + " no está activa.");
-                    }
-                    if (idsAreasPermitidas != null && !idsAreasPermitidas.contains(areaId)) {
-                        throw new SecurityException("No tiene permisos para dar de alta usuarios en el área con id " + areaId + ".");
-                    }
-
-                    // --- Duplicados: dentro del archivo y contra la base de datos ---
-                    if (!numerosControlEnArchivo.add(numeroControl)) {
-                        throw new IllegalArgumentException("El número de control '" + numeroControl
-                                + "' está repetido dentro del archivo.");
-                    }
-                    if (usuarioRepository.findByNumeroControl(numeroControl).isPresent()) {
-                        throw new IllegalArgumentException("El número de control '" + numeroControl
-                                + "' ya existe en el sistema.");
-                    }
-
-                    // --- Alta del usuario ---
-                    Usuario usuario = new Usuario();
-                    usuario.setNumeroControl(numeroControl);
-                    usuario.setNombre(nombre);
-                    usuario.setApellidoPaterno(apellidoPaterno);
-                    usuario.setApellidoMaterno(apellidoMaterno.isBlank() ? null : apellidoMaterno);
-                    usuario.setRol(Rol.USER);
-                    usuario.setEstatus(Estado.ACTIVE);
-                    usuario.setAreaPrincipal(area);
-                    usuario.setAreasGestionadas(new HashSet<>());
-                    // Contraseña inicial predeterminada; se obliga a cambiarla en el primer login.
-                    usuario.setPassword(passwordEncoder.encode(numeroControl + "-DIF"));
-                    usuario.setRequiereCambioPassword(true);
-
-                    usuarioRepository.save(usuario);
-                    procesados++;
-
+                } catch (FilaSinCambiosException sc) {
+                    sinCambios++;
+                    detalle.add(prefijo + sc.getMessage());
                 } catch (Exception e) {
                     errores++;
-                    detalleErrores.add("Fila " + numeroFila + ": " + e.getMessage());
+                    detalle.add(prefijo + e.getMessage());
                 }
             }
         }
@@ -280,13 +226,187 @@ public class UsuarioService {
         Map<String, Object> resultado = new HashMap<>();
         resultado.put("procesados", procesados);
         resultado.put("errores", errores);
-        resultado.put("detalleErrores", detalleErrores);
+        resultado.put("sinCambios", sinCambios);
+        resultado.put("detalleErrores", detalle);
         return resultado;
+    }
+
+    /** Señala que una fila se procesó sin error pero no produjo cambios (informativo). */
+    private static class FilaSinCambiosException extends RuntimeException {
+        FilaSinCambiosException(String message) { super(message); }
+    }
+
+    /** Procesa una fila en modo CREAR (alta de usuario nuevo). */
+    private void procesarFilaCrear(
+            Row row, String numeroControl, Set<String> numerosControlEnArchivo,
+            Set<Integer> idsAreasPermitidas, String prefijo, List<String> detalle) {
+
+        String nombre = getCellValueAsString(row.getCell(1));
+        String apellidoPaterno = getCellValueAsString(row.getCell(2));
+        String apellidoMaterno = getCellValueAsString(row.getCell(3));
+        String areaIdTexto = getCellValueAsString(row.getCell(4));
+        String rolTexto = getCellValueAsString(row.getCell(5)).toUpperCase();
+        String horarioIdTexto = getCellValueAsString(row.getCell(6));
+
+        // --- Campos obligatorios (se indica la columna faltante) ---
+        if (numeroControl.isBlank())
+            throw new IllegalArgumentException("falta el dato en la columna 'numero_control'.");
+        if (nombre.isBlank())
+            throw new IllegalArgumentException("falta el dato en la columna 'nombre'.");
+        if (apellidoPaterno.isBlank())
+            throw new IllegalArgumentException("falta el dato en la columna 'apellido_paterno'.");
+        if (rolTexto.isBlank())
+            throw new IllegalArgumentException("falta el dato en la columna 'rol' (debe ser USER).");
+
+        // --- Rol: solo USER ---
+        Rol rol;
+        try {
+            rol = Rol.valueOf(rolTexto);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("rol inválido '" + rolTexto + "'. Solo se permite USER.");
+        }
+        if (rol != Rol.USER)
+            throw new IllegalArgumentException("solo se permite el rol USER en la carga masiva. "
+                    + "Los administradores se crean de forma individual.");
+
+        // --- Área ---
+        if (areaIdTexto.isBlank())
+            throw new IllegalArgumentException("falta el dato en la columna 'area_id'.");
+        Area area = validarArea(areaIdTexto, idsAreasPermitidas);
+
+        // --- Horario (opcional) ---
+        Integer horarioId = validarHorarioOpcional(horarioIdTexto);
+
+        // --- Duplicados: dentro del archivo y contra la base de datos ---
+        if (!numerosControlEnArchivo.add(numeroControl))
+            throw new IllegalArgumentException("el número de control está repetido dentro del archivo.");
+        if (usuarioRepository.findByNumeroControl(numeroControl).isPresent())
+            throw new IllegalArgumentException("omitido, el número de control ya existe en el sistema.");
+
+        // --- Alta del usuario ---
+        Usuario usuario = new Usuario();
+        usuario.setNumeroControl(numeroControl);
+        usuario.setNombre(nombre);
+        usuario.setApellidoPaterno(apellidoPaterno);
+        usuario.setApellidoMaterno(apellidoMaterno.isBlank() ? null : apellidoMaterno);
+        usuario.setRol(Rol.USER);
+        usuario.setEstatus(Estado.ACTIVE);
+        usuario.setAreaPrincipal(area);
+        usuario.setAreasGestionadas(new HashSet<>());
+        usuario.setPassword(passwordEncoder.encode(numeroControl + "-DIF"));
+        usuario.setRequiereCambioPassword(true);
+        usuario = usuarioRepository.save(usuario);
+
+        if (horarioId != null) {
+            reasignarHorario(usuario, horarioId);
+            detalle.add(prefijo + "usuario creado (con horario " + horarioId + ").");
+        } else {
+            detalle.add(prefijo + "usuario creado (sin horario asignado).");
+        }
+    }
+
+    /**
+     * Procesa una fila en modo ACTUALIZAR_HORARIO. Solo toca el horario de un
+     * usuario existente; no crea usuarios ni modifica otros campos.
+     *
+     * @return 1 si actualizó el horario; lanza FilaSinCambiosException si no hubo cambio.
+     */
+    private int procesarFilaActualizarHorario(
+            Row row, String numeroControl, Set<String> numerosControlEnArchivo,
+            Set<Integer> idsAreasPermitidas, String prefijo, List<String> detalle) {
+
+        if (numeroControl.isBlank())
+            throw new IllegalArgumentException("falta el dato en la columna 'numero_control'.");
+
+        String horarioIdTexto = getCellValueAsString(row.getCell(6));
+
+        // Duplicado dentro del archivo (mismo número de control dos veces).
+        if (!numerosControlEnArchivo.add(numeroControl))
+            throw new IllegalArgumentException("el número de control está repetido dentro del archivo.");
+
+        // El usuario debe existir.
+        Usuario usuario = usuarioRepository.findByNumeroControl(numeroControl)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "omitido, no existe ese usuario para actualizar."));
+
+        // Permiso por área del usuario (ADMIN).
+        if (idsAreasPermitidas != null
+                && !idsAreasPermitidas.contains(usuario.getAreaPrincipal().getId()))
+            throw new SecurityException("no tiene permisos para modificar a este usuario.");
+
+        // Si no trae horario, no se toca nada (se informa).
+        if (horarioIdTexto.isBlank())
+            throw new FilaSinCambiosException("sin cambios, no traía dato en la columna 'horario_id'.");
+
+        Integer horarioId = validarHorarioOpcional(horarioIdTexto);
+        reasignarHorario(usuario, horarioId);
+        detalle.add(prefijo + "horario actualizado a " + horarioId + ".");
+        return 1;
+    }
+
+    /** Valida y retorna el área a partir del texto del id; lanza error legible si falla. */
+    private Area validarArea(String areaIdTexto, Set<Integer> idsAreasPermitidas) {
+        Integer areaId;
+        try {
+            areaId = Integer.valueOf(areaIdTexto);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("el area_id '" + areaIdTexto + "' no es un número válido.");
+        }
+        Area area = areaRepository.findById(areaId)
+                .orElseThrow(() -> new IllegalArgumentException("no existe un área con id " + areaId + "."));
+        if (area.getEstatus() != Estado.ACTIVE)
+            throw new IllegalArgumentException("el área con id " + areaId + " no está activa.");
+        if (idsAreasPermitidas != null && !idsAreasPermitidas.contains(areaId))
+            throw new SecurityException("no tiene permisos para dar de alta usuarios en el área con id " + areaId + ".");
+        return area;
+    }
+
+    /** Valida el horario_id si viene; retorna null si la celda está vacía. */
+    private Integer validarHorarioOpcional(String horarioIdTexto) {
+        if (horarioIdTexto.isBlank()) return null;
+        Integer horarioId;
+        try {
+            horarioId = Integer.valueOf(horarioIdTexto);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("el horario_id '" + horarioIdTexto + "' no es un número válido.");
+        }
+        if (!horarioRepository.existsById(horarioId))
+            throw new IllegalArgumentException("no existe un horario con id " + horarioId + ".");
+        return horarioId;
+    }
+
+    /**
+     * Asigna (o reasigna) el horario de un usuario de forma segura. Como la PK de
+     * HorarioUsuario incluye el horarioId, primero se elimina la asignación previa
+     * y luego se crea la nueva, evitando registros huérfanos.
+     */
+    private void reasignarHorario(Usuario usuario, Integer horarioId) {
+        Horario horario = horarioRepository.findById(horarioId)
+                .orElseThrow(() -> new RuntimeException("Horario no encontrado"));
+
+        horarioUsuarioRepository.findByUsuarioId(usuario.getId())
+                .ifPresent(existente -> {
+                    horarioUsuarioRepository.delete(existente);
+                    horarioUsuarioRepository.flush();
+                });
+
+        HorarioUsuarioId id = new HorarioUsuarioId();
+        id.setUsuarioId(usuario.getId());
+        id.setHorarioId(horario.getId());
+
+        HorarioUsuario horarioUsuario = new HorarioUsuario();
+        horarioUsuario.setId(id);
+        horarioUsuario.setUsuario(usuario);
+        horarioUsuario.setHorario(horario);
+        horarioUsuario.setArea(usuario.getAreaPrincipal());
+        horarioUsuario.setFechaInicioCiclo(LocalDate.now());
+
+        horarioUsuarioRepository.save(horarioUsuario);
     }
 
     /** True si todas las celdas relevantes de la fila están vacías. */
     private boolean filaVacia(Row row) {
-        for (int i = 0; i <= 5; i++) {
+        for (int i = 0; i <= 6; i++) {
             if (!getCellValueAsString(row.getCell(i)).isBlank()) {
                 return false;
             }
